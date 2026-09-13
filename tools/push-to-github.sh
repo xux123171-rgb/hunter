@@ -29,15 +29,17 @@ echo "== 创建仓库 API 返回 HTTP=$http =="
 if [ "$http" = "422" ]; then echo "  仓库 $REPO 已存在，跳过创建（将直接推）"; fi
 if [ "$http" = "401" ]; then echo "  401 鉴权失败：token 无效或过期，或 token 没有 repo 权限。检查后重存 .hunter-token。"; exit 1; fi
 
-# 2) 推（带 token 的 URL，token 不打印）
+# 2) 推（带 token 的 URL，token 不打印；从 API 拿真实 owner，不靠 create 响应的 full_name）
+LOGIN=$(curl -sk4 -m 20 -H "Authorization: Bearer ***" "https://api.github.com/user" \
+  | grep -oE '"login": *"[^"]*"' | head -1 | cut -d'"' -f4)
+FULL="${LOGIN:-xux123171-rgb}/$REPO"
 git remote remove origin 2>/dev/null || true
-git remote add origin "https://x-access-token:$TOKEN@github.com/$(echo "$create_resp" | grep -oE '"full_name": *"[^"]*"' | head -1 | sed 's/.*":"//;s/"//' || echo "ME/$REPO").git"
-# 上面 full_name 可能为空，兜底用 user 拉一次
-git push -u origin "$BRANCH" 2>&1 | sed 's/[A-Za-z0-9]*:[A-Za-z0-9_-]\{20,\}/[REDACTED]/g'
+git remote add origin "https://x-access-token:$TOKEN@github.com/$FULL.git"
+git push -u origin "$BRANCH" 2>&1 | sed "s/$TOKEN/***/g"
 echo
 echo "== 推完 remote（已把 token 从 URL 里抹掉）=="
-git remote set-url origin "https://github.com/$(git remote get-url origin | sed 's/.*@github.com/github.com/')".git
-git remote -v | sed 's/[A-Za-z0-9_-]\{20,\}/[REDACTED]/g'
+git remote set-url origin "https://github.com/$FULL.git"
+git remote -v
 echo
-echo "完成。仓库: https://github.com/<你的用户名>/$REPO  (private)"
+echo "完成。仓库: https://github.com/$FULL (private)"
 echo "token 在 .hunter-token（已被 .gitignore 挡出 git）。不再需要可删： rm .hunter-token"
