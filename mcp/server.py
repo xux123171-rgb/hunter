@@ -183,16 +183,19 @@ def hunter_accounts(cmd: str, tag: str = "hunter") -> str:
 
 @mcp.tool()
 def hunter_brain(what: str = "sop") -> str:
-    """取脑子（本项目方法论原文，按需读）：sop / gates(影响门+合规深度封顶表) / waf(合规绕过) / race(业务逻辑+并发)。"""
-    mapping = {"sop": ROOT / "sop" / "SOP.md",
+    """取脑子（本项目方法论，按需读，MCP 自包含无需 skill）：
+    playbook = 完整作战手册（铁律+6阶段+判死速查+截图配方，最全，默认先读这个）
+    sop = SOP 简版 / gates = 影响门+合规深度封顶表 / waf = 合规绕过 / race = 业务逻辑+并发。"""
+    mapping = {"playbook": ROOT / "sop" / "PLAYBOOK.md",
+               "sop": ROOT / "sop" / "SOP.md",
                "gates": ROOT / "references" / "impact-priority-gates.md",
                "waf": ROOT / "references" / "waf-bypass.md",
                "race": ROOT / "references" / "race-business-logic.md"}
-    path = mapping.get(what, mapping["sop"])
+    path = mapping.get(what, mapping["playbook"])
     try:
         return path.read_text(encoding="utf-8", errors="replace")[:20000]
     except FileNotFoundError:
-        return f"找不到 {path}（设 HUNTER_HOME 指向项目根）"
+        return f"找不到 {path}（设 HUNTER_HOME 指向项目根；可选: {list(mapping)}）"
 
 
 if __name__ == "__main__":
