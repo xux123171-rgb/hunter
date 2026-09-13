@@ -3,9 +3,15 @@ import asyncio, os
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-ROOT = r"C:\Users\ThinkPad\Documents\src-xiaoxu\hunter"
-PY = ROOT + r"\mcp\.venv\Scripts\python.exe"
-SRV = ROOT + r"\mcp\server.py"
+import os, pathlib
+from pathlib import Path
+
+# 仓库根 = mcp/test_client.py 上两级（与 server.py 一致，clone 到哪就在哪跑，不写死机器路径）
+_root = os.environ.get("HUNTER_HOME")
+ROOT = str(Path(_root)) if _root and Path(_root).is_dir() else str(Path(__file__).resolve().parent.parent)
+PY = str(Path(ROOT) / "mcp" / ".venv" / "Scripts" / "python.exe")
+PY = PY if os.path.exists(PY) else str(Path(ROOT) / "mcp" / ".venv" / "bin" / "python")
+SRV = str(Path(ROOT) / "mcp" / "server.py")
 
 async def main():
     params = StdioServerParameters(command=PY, args=[SRV])

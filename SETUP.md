@@ -56,7 +56,7 @@ hermes mcp add hunter \
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `HUNTER_HOME` | `C:\Users\ThinkPad\Documents\src-xiaoxu\hunter`（**写死的兜底**，只在别人机器上需要改） | 指向 clone 的仓库根 |
+| `HUNTER_HOME` | 不设也能跑（`server.py` 从 `__file__` 自动定位到 clone 的仓库根；仅多副本/分离安装时需显式设） | 指向仓库根 |
 | `HUNTER_PYTHON` | 自动发现（Hermes agent venv → PATH python） | 跑 xssprobe/mailacct 子进程的解释器，需含 playwright |
 | `HUNTER_SLUG` | 由 URL 自动推 | 指定 scratch 工作目录名 |
 

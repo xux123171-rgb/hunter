@@ -7,7 +7,8 @@ set -u
 DOM="${1:?usage: hunt.sh <domain> [slug] [scope_md]}"
 SLUG="${2:-${DOM//./_}}"
 SCOPE="${3:-}"
-ROOT="${HUNTER_DIR:-/c/Users/ThinkPad/Documents/src-xiaoxu/hunter}"
+# 仓库根：HUNTER_DIR 显式 > 脚本自身所在目录的上一级（clone 到哪就在哪，不写死机器路径）
+ROOT="${HUNTER_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 SCR="$ROOT/scratch/$SLUG"; REP="$ROOT/reports/$SLUG"
 mkdir -p "$SCR" "$REP"
 

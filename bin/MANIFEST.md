@@ -25,9 +25,9 @@ go install github.com/projectdiscovery/httpx/cmd/httpx@latest
 # nuclei 模板库：bash tools/install-toolchain.sh 自动 download_templates（zip + ghproxy 加速）
 ```
 
-## 一条命令铺进 PATH（让 shell 直接能用）
+## 一条命令铺进 PATH（让 shell 直接能用；路径按你的 clone 位置改）
 ```bash
-export HUNTER_BIN="/c/Users/ThinkPad/Documents/src-xiaoxu/hunter/bin"
+export HUNTER_BIN="$(cd "$(dirname "$0")/../bin" && pwd)"   # 或手填：.../hunter/bin
 export PATH="$HUNTER_BIN:$PATH"
 ```
 铺好后 `katana -version` / `nuclei -version` / `ffuf -v` / `httpx -version` 直接可用。

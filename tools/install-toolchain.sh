@@ -21,11 +21,9 @@ for t in katana.exe nuclei.exe ffuf.exe httpx.exe; do
 done
 
 # 我们的 hunter-mcp（可选加速器）：脑子(SOP)留 skill，腿做成 MCP 类型化工具，全指向本项目
-# 起法（Hermes config.yaml）：
-#   mcp_servers:
-#     hunter:
-#       command: "C:\\Users\\ThinkPad\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe"
-#       args: ["C:\\Users\\ThinkPad\\Documents\\src-xiaoxu\\hunter\\mcp\\server.py"]
+# 起法（Hermes config.yaml；ROOT 自动发现，无需写死任何机器路径）：
+#   hermes mcp add hunter --command "<repo>/mcp/.venv/Scripts/python.exe" --args "<repo>/mcp/server.py"
+# 或跑 tools/install-hermes.sh 一键完成（本仓库已含，自动定位到 clone 路径）
 # venv 重建：cd mcp && uv venv .venv && uv pip install -q 'mcp[cli]<2'
 echo "  hunter-mcp（可选）: $HERE/mcp/server.py，注册见上方注释；无它也能纯 tools/ 全流程"
 

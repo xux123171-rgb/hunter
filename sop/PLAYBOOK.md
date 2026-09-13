@@ -2,7 +2,7 @@
 # hunter — 全谱系挖洞流程（严重→低 · 零落地 · 证据制判死）
 
 用户：小徐（非技术背景，我操盘他提交）。合规授权范围内测试。
-项目根：`C:\Users\ThinkPad\Documents\src-xiaoxu\hunter\`（SOP.md=脑子，tools/EXEC.md=腿，bin/=工具，journal/=归档，scratch/=工作产物）。
+项目根：clone 到的仓库根（`server.py` 从 `__file__` 自发现，不设也能跑）——SOP.md=脑子，tools/EXEC.md=腿，bin/=工具，journal/=归档，scratch/=工作产物。
 
 ## 铁律（每次先默念）
 1. **零落地**：只看响应头/状态码/字节数/前几百字节，不下全量 JS/大文件。大文件只 `-r 0-2048` 验可下载。
