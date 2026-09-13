@@ -9,11 +9,15 @@
 
 运行（stdio，由 MCP 宿主拉起）：
   <python> mcp/server.py
-宿主注册（Hermes config.yaml）：
+宿主注册（Hermes config.yaml，<repo> 换 clone 路径）：
   mcp_servers:
     hunter:
-      command: "C:\\Users\\ThinkPad\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe"
-      args: ["C:\\Users\\ThinkPad\\Documents\\src-xiaoxu\\hunter\\mcp\\server.py"]
+      command: "<repo>/mcp/.venv/Scripts/python.exe"
+      args: ["<repo>/mcp/server.py"]
+路径自动发现（跨机，不再写死某台机器）：
+  HUNTER_HOME   仓库根（默认兜底 = 本机开发路径，别的机器需设）
+  HUNTER_PYTHON 跑子进程的解释器（默认找 Hermes agent venv / PATH python）
+  bash          自动探测 Git for Windows 常见安装位置
 
 工具（8 个，全是我们自己的）：
   hunter_recon(domain)         阶段1+2 子域+官网扫+活体指纹（hunter-cli recon）
@@ -49,10 +53,27 @@ def _which(name: str, *extra: str) -> str:
             return cand
     raise SystemExit(f"找不到 {name}（装 Git for Windows 或设 HUNTER_HOME 环境路径）")
 
-BASH = _which("bash", r"C:\Users\ThinkPad\Git\usr\bin\bash.EXE")
-VENV_PY = (r"C:\Users\ThinkPad\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe"
-           if Path(r"C:\Users\ThinkPad\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe").exists()
-           else shutil.which("python") or "python")
+BASH = _which("bash",
+              r"C:\Program Files\Git\usr\bin\bash.EXE",
+              r"C:\Program Files (x86)\Git\usr\bin\bash.EXE",
+              r"C:\Program Files\Git\bin\bash.EXE")
+
+
+def _venv_py() -> str:
+    # Python 宿主（跑 xssprobe/mailacct 子进程）：
+    # 优先 HUNTER_PYTHON 显式指定 → Hermes agent venv（含 playwright）→ PATH 上的 python
+    p = os.environ.get("HUNTER_PYTHON")
+    if p and Path(p).exists():
+        return p
+    la = os.environ.get("LOCALAPPDATA")
+    if la:
+        cand = Path(la) / "hermes" / "hermes-agent" / "venv" / "Scripts" / "python.exe"
+        if cand.exists():
+            return str(cand)
+    return shutil.which("python") or "python"
+
+
+VENV_PY = _venv_py()
 
 
 def _run_sh(cmd: str, timeout: int = 300) -> str:

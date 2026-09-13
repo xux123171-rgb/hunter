@@ -79,6 +79,26 @@ setup_mcp() {
   command -v uv >/dev/null 2>&1 || { echo "  缺 uv，先 install uv 再跑"; return 1; }
   ( cd "$mcpdir" && uv venv .venv 2>&1 | tail -2 \
       && uv pip install --python "$(uv python find .venv 2>/dev/null || echo .venv)" -q 'mcp[cli]<2' 2>&1 | tail -2 )
-  echo "  起服务: $(cmd v mcp/.venv/Scripts/python.exe) mcp/server.py（见 mcp/server.py 头部注册说明）"
+  echo "  起服务: <repo>/mcp/.venv/Scripts/python.exe mcp/server.py（见 mcp/server.py 头部注册说明）"
 }
 setup_mcp
+# ------------------------------------------------------------------
+# xssprobe 依赖 Playwright（浏览器端存储XSS 腿）
+# Python 宿主解析：HUNTER_PYTHON 显式 > Hermes agent venv（含 playwright）> 系统 python
+# 跨机可移植，不再写死某台机器路径
+# ------------------------------------------------------------------
+setup_playwright() {
+  local PY
+  if [ -n "${HUNTER_PYTHON:-}" ]; then PY="$HUNTER_PYTHON"
+  elif [ -n "${LOCALAPPDATA:-}" ] && [ -f "${LOCALAPPDATA}/hermes/hermes-agent/venv/Scripts/python.exe" ]; then PY="${LOCALAPPDATA}/hermes/hermes-agent/venv/Scripts/python.exe"
+  else PY="$(command -v python || echo "")"; fi
+  [ -z "$PY" ] && { echo "==> 未找到 Python 宿主，跳过（xssprobe 腿不可用，不影响其他 7 腿；设 HUNTER_PYTHON 可指一个装了 playwright 的解释器）"; return 0; }
+  if "$PY" -c "import playwright" >/dev/null 2>&1; then
+    echo "==> playwright 已在（$PY），xssprobe 可用"
+  else
+    echo "==> 装 playwright + chromium 进 $PY（xssprobe 需要）"
+    "$PY" -m pip install -q playwright 2>&1 | tail -1
+    "$PY" -m playwright install chromium 2>&1 | tail -1
+  fi
+}
+setup_playwright

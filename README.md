@@ -30,6 +30,9 @@ hunter/
 ├── templates/
 │   ├── finding-poc.md       # finding + PoC 骨架
 │   └── report-btt-vulbox.md # 补天/盒子可复制报告模板
+├── mcp/                     # 我们自己的 MCP 服务（FastMCP stdio，8工具全自研）
+│   ├── server.py            # recon/probe/crawl/scan/fuzz/xss/accounts/brain
+│   └── full_test.py         # 8工具一键复测（防回归）
 ├── journal/<目标>/       # 出洞归档：scope/report/finding/截图清单
 ├── scratch/<目标>/       # 工作产物（assets/probe/endpoints），打完即删
 └── reports/<目标>/       # 报告 + 证据
@@ -75,3 +78,20 @@ bash tools/hunt.sh <domain> [slug] [scope.md]
 - 拿不到 2 可用登录态（审核制/滑块/极验）→ 越权/IDOR 线判死
 - 自研 WAF 全拦 + 3 种绕过手法均拦 → WAF 线判死
 - 单 www + 强 WAF + 子域全 404 → 全目标判死
+
+## 换机迁移（clone 即用）
+仓库自带全部**脑子**（sop/ + references/ + PLAYBOOK.md）+ 全部**自研腿**（tools/ + mcp/server.py），
+换机 3 步（完整环境清单/变量/踩坑表见 **`SETUP.md`**）：
+
+```bash
+git clone <repo> hunter && cd hunter
+# 前置：装 Go + uv（引擎编译 / MCP venv，见 SETUP.md 第一节）
+bash tools/install-toolchain.sh   # 一条命令重建 bin/ 4引擎 + 11k nuclei模板 + mcp/.venv + playwright
+# Hermes 里注册 MCP（可选，不装也能纯 CLI 全流程）：
+#   mcp_servers.hunter.command = <repo>/mcp/.venv/Scripts/python.exe
+#   mcp_servers.hunter.args    = [<repo>/mcp/server.py]
+# 别的机器改 HUNTER_HOME 指向你的 clone 路径（自动发现逻辑在 mcp/server.py，无需改代码）
+```
+
+不在 git 里（体积大，靠脚本重建）：`bin/*.exe`（go install）、`bin/templates/`（官方 zip + ghproxy 兜底）、
+`mcp/.venv`（uv + mcp[cli]<2）。国内机 GitHub 直连断流时走 `ghproxy.net` 前缀，脚本已内置。
