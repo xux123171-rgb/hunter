@@ -56,14 +56,19 @@ VENV_PY = (r"C:\Users\ThinkPad\AppData\Local\hermes\hermes-agent\venv\Scripts\py
 
 
 def _run_sh(cmd: str, timeout: int = 300) -> str:
-    env = dict(os.environ, PATH=f"{BIN};{os.environ.get('PATH','')}")
-    p = subprocess.run([BASH, "-lc", cmd], capture_output=True, timeout=timeout,
-                       cwd=str(ROOT), env=env)
+    # 关键: stdin=DEVNULL。MCP server 的 stdin 是 stdio 协议管道，子进程若继承它会挂住
+    # （login bash 检测到 piped stdin 会 stall）→ 之前 probe/crawl 走 MCP 就 90s 超时的根因。
+    # PYTHONIOENCODING=utf-8: Windows 原生 python 子进程 stdout 默认 GBK，统一钉 UTF-8 防中文乱码。
+    env = dict(os.environ, PATH=f"{BIN};{os.environ.get('PATH','')}", PYTHONIOENCODING="utf-8")
+    p = subprocess.run([BASH, "-c", cmd], capture_output=True, timeout=timeout,
+                       stdin=subprocess.DEVNULL, cwd=str(ROOT), env=env)
     return (p.stdout.decode("utf-8", "replace") + p.stderr.decode("utf-8", "replace")).strip()
 
 
 def _run_py(args: list, timeout: int = 300) -> str:
-    p = subprocess.run([VENV_PY, *args], capture_output=True, timeout=timeout, cwd=str(ROOT))
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    p = subprocess.run([VENV_PY, *args], capture_output=True, timeout=timeout,
+                       stdin=subprocess.DEVNULL, cwd=str(ROOT), env=env)
     return (p.stdout.decode("utf-8", "replace") + p.stderr.decode("utf-8", "replace")).strip()
 
 
