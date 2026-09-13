@@ -43,7 +43,7 @@ download_templates() {
     echo "==> nuclei 模板已就位（$(find "$dst/http" -name '*.yaml' | wc -l) 个 http 模板），跳过"
     return 0
   fi
-  rm -rf "$dst" scratch/nuclei-templates.zip
+  mkdir -p "$HERE/scratch"; rm -rf "$dst" scratch/nuclei-templates.zip
   echo "==> 拉 nuclei-templates（官方 main zip，国内可加加速前缀）"
   local url="https://github.com/projectdiscovery/nuclei-templates/archive/refs/heads/main.zip"
   # 国内 GitHub 直连常断 → 自动试 ghproxy 加速镜像

@@ -39,9 +39,22 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("hunter")
 
-ROOT = Path(os.environ.get("HUNTER_HOME", r"C:\Users\ThinkPad\Documents\src-xiaoxu\hunter"))
-BIN = f"{ROOT}\\bin"
-TOOLS = f"{ROOT}\\tools"
+
+def _root() -> Path:
+    # 仓库根 = mcp/server.py 上两级。HUNTER_HOME 可显式覆盖（多副本场景）。
+    # 不再写死任何一台机器的绝对路径——clone 到哪就在哪跑。
+    env = os.environ.get("HUNTER_HOME")
+    if env and Path(env).is_dir():
+        return Path(env)
+    return Path(__file__).resolve().parent.parent
+
+
+ROOT = _root()
+BIN = ROOT / "bin"
+TOOLS = ROOT / "tools"
+# 喂 bash -c 里调原生 Windows 引擎时要正斜杠路径；喂 _run_py/subprocess 用 str(Path)
+def _win(p: Path) -> str:
+    return str(p)
 
 # Python 子进程视角：bash/curl 由 git 自带，PATH 兜底常见安装位置
 def _which(name: str, *extra: str) -> str:
@@ -117,14 +130,14 @@ def _slug_of(url: str) -> str:
 def hunter_recon(domain: str) -> str:
     """阶段1+2 一键侦察（自研腿）：子域枚举(DoH+crt.sh) + 官网源码扫(内网IP:端口/备案/JS) + 活体指纹普查。
     零落地——只看响应头/状态码/字节数。产物落 scratch/<slug>/，返回摘要。"""
-    out = _run_sh(f"bash '{TOOLS.replace(chr(92), '/')}'/hunter-cli.sh recon {json.dumps(domain)}", timeout=600)
+    out = _run_sh(f"bash '{TOOLS.as_posix()}/hunter-cli.sh' recon {json.dumps(domain)}", timeout=600)
     return out[:20000]
 
 
 @mcp.tool()
 def hunter_probe(url: str) -> str:
     """阶段2 单点活体指纹（纯自研 curl，1 次请求）：status/Server/Set-Cookie/404指纹/WAF指纹。"""
-    out = _run_sh(f"bash '{TOOLS.replace(chr(92), '/')}'/hunter-cli.sh probe {json.dumps(url)}", timeout=90)
+    out = _run_sh(f"bash '{TOOLS.as_posix()}/hunter-cli.sh' probe {json.dumps(url)}", timeout=90)
     return out[:8000]
 
 

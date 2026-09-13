@@ -7,9 +7,17 @@ import asyncio, sys
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-ROOT = r"C:\Users\ThinkPad\Documents\src-xiaoxu\hunter"
-PY = ROOT + r"\mcp\.venv\Scripts\python.exe"
-SRV = ROOT + r"\mcp\server.py"
+import os
+from pathlib import Path
+
+# 仓库根 = mcp/full_test.py 上两级（与 server.py 一致，不再写死任何一台机器路径）
+ROOT = os.environ.get("HUNTER_HOME")
+if not ROOT or not os.path.isdir(ROOT):
+    ROOT = str(Path(__file__).resolve().parent.parent)
+
+PY = str(Path(ROOT) / "mcp" / ".venv" / "Scripts" / "python.exe")
+PY = PY if os.path.exists(PY) else str(Path(ROOT) / "mcp" / ".venv" / "bin" / "python")
+SRV = str(Path(ROOT) / "mcp" / "server.py")
 DOM = "easthope.cn"
 WWW = "https://www.easthope.cn/"
 DZ = "https://dzxs.easthope.cn/"
