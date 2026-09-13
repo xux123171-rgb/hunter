@@ -68,12 +68,15 @@ cmd_recon() { # 阶段1+2 一键
 }
 
 cmd_probe() { # 阶段2 活体指纹（自研 curl，不靠 cybermes）
-  local URL="${1:?url}"; local UA4=""
+  local URL="${1:?url}"
   echo "== hunter probe $URL =="
-  local h b code sz
+  local h b
   h="$(mktemp)"; b="$(mktemp)"
-  code_sz=$(curl -sk4 -m 12 -A "$UA" -o "$b" -D "$h" -w "%{http_code} %{size_download}" "$URL" 2>/dev/null)
-  code=$(echo "$code_sz" | awk '{print $1}'); sz=$(echo "$code_sz" | awk '{print $2}')
+  # git-bash 下 "-o 文件 -D 文件" 同条会失败，用 "-D - > 头文件" 稳写法，一次请求
+  curl -sk4 -m 12 -A "$UA" -o "$b" -D - "$URL" > "$h" 2>/dev/null
+  local code sz
+  code=$(grep -ioE '^HTTP/[0-9.]+ [0-9]+' "$h" | tail -1 | awk '{print $2}'); code="${code:-000}"
+  sz=$(wc -c < "$b" | tr -d ' ')
   echo "status=$code bytes=$sz"
   echo "--- headers ---"; grep -iE '^(server|x-|via|set-cookie|location|content-type):' "$h" | tr -d '\r'
   echo "--- waf/captcha 指纹 ---"; grep -oiE 'waf|触发.*防护|acw_tc|CT2-WAAP|slide|captcha|安全验证' "$b" | sort -u | tr '\n' ';'; echo
