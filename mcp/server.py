@@ -106,9 +106,10 @@ def hunter_probe(url: str) -> str:
 def hunter_crawl(url: str, depth: int = 2, js: bool = True) -> str:
     """阶段3 面绘制（katana 直调）：爬端点+JS，depth 控量（默认2，合规）。返回端点数+前50条。"""
     out = _scratch(_slug_of(url))
-    args = [f"{url}", f"-d", str(int(depth)), f"-o", f"{out}\\katana_endpoints.txt"]
+    args = [f"-u", f"{url}", f"-d", str(int(depth)), f"-o", f"{out}\\katana_endpoints.txt"]
     if js:
-        args.append("-js")
+        args.append("-jc")
+    args.append("-ct"); args.append("2m")
     args.append("-silent")
     _run_sh(f'"{_eng("katana")}" ' + " ".join(json.dumps(a) for a in args), timeout=300)
     f = Path(out) / "katana_endpoints.txt"
@@ -124,12 +125,12 @@ def hunter_scan(url: str, severity: str = "critical,high", tags: str = "exposed-
     out = _scratch(_slug_of(url))
     tdir = f"{BIN}\\templates\\http"
     args = [f"-u", f"{url}", f"-t", f"{tdir}", f"-severity", f"{severity}",
-            f"-tags", f"{tags}", f"-rl", str(max(1, int(rate_limit))), "-c", "5",
-            f"-o", f"{out}\\nuclei.txt", "-silent"]
+            f"-tags", f"{tags}", f"-rate-limit", str(max(1, int(rate_limit))), "-c", "5",
+            f"-o", f"{out}\\nuclei.txt"]
     _run_sh(f'"{_eng("nuclei")}" ' + " ".join(json.dumps(a) for a in args), timeout=600)
     f = Path(out) / "nuclei.txt"
     txt = f.read_text(encoding="utf-8", errors="replace") if f.exists() else ""
-    return (txt.strip() or "无命中（nuclei 对 -u 全模板跑，注意模板数量大时耗时；可加 -tags 收窄）")[:20000]
+    return (txt.strip() or "无命中（nuclei 本地模板已跑；0 命中=对该 tags 家族干净，注意大模板库耗时长）")[:20000]
 
 
 @mcp.tool()
@@ -139,7 +140,7 @@ def hunter_fuzz(url: str, wordlist: str = "", rate_limit: int = 5) -> str:
     out = _scratch(_slug_of(url))
     wl = wordlist or f"{TOOLS}\\wordlists\\common.txt"
     args = [f"-u", f"{url}", f"-w", f"{wl}", f"-mc", "200,204,301,302,307,401,403,405",
-            f"-rate", str(max(1, int(rate_limit))), "-t", "5", "-retries", "1",
+            f"-rate", str(max(1, int(rate_limit))), "-t", "5",
             f"-o", f"{out}\\ffuf.txt"]
     _run_sh(f'"{_eng("ffuf")}" ' + " ".join(json.dumps(a) for a in args), timeout=600)
     f = Path(out) / "ffuf.txt"

@@ -1,10 +1,10 @@
-admin admin.php adminlogin login user users
-.git .git/ .svn .env .bak
-api api/v1 swagger openapi
-backup db.sql data.sql config.js
-.git/config .git/HEAD
-web.config crossdomain.xml
-.nuget .vscode
-actuator actuator/env actuator/health
-console manager host-manager
-deploy wp-admin phpmyadmin
+admin
+api
+swagger
+actuator
+.git
+backup
+phpmyadmin
+druid
+console
+nacos

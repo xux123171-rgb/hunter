@@ -26,6 +26,16 @@ eng() { # eng <name> -> 解析可执行路径
   have "$n.exe" && { echo "$(command -v "$n.exe")"; return; }
   echo ""
 }
+# 原生 Windows 引擎(katana/nuclei/ffuf)只认 Windows 路径，不认 MSYS /c/... 绝对路径
+# 且 cygpath -w 对相对路径不转 → 先绝对化再转 Windows；转不了退回原值
+wp() { # wp <path> -> 原生引擎可用的 Windows 路径
+  local p="$1" abs
+  case "$p" in /*) abs="$p";; *) abs="$(pwd)/$p";; esac
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$abs" 2>/dev/null && return
+  fi
+  echo "$p"
+}
 
 # 本机 IPv6 不稳 → 所有 curl 强制 -4；DNS 走阿里 DoH
 doh() { curl -sk4 -m 8 "https://dns.alidns.com/resolve?name=$1&type=A" \
@@ -89,31 +99,38 @@ cmd_crawl() { # 阶段3 面绘制（调 katana）
   [ -z "$K" ] && { echo "缺 katana，先跑 tools/install-toolchain.sh"; return 1; }
   local SLUG="${HUNTER_SLUG:-$(echo "${URL#https://}" | sed 's/[/?].*//;s/./_/g')}"; local out="$ROOT/scratch/$SLUG"; mkdir -p "$out"
   echo "== hunter crawl $URL (katana) =="
-  "$K" -u "$URL" -d 2 -js -aff -silent -o "$out/katana_endpoints.txt" 2>/dev/null || \
-    "$K" -u "$URL" -d 2 -js -silent -o "$out/katana_endpoints.txt"
+  local O="$(wp "$out/katana_endpoints.txt")"
+  "$K" -u "$URL" -d 2 -jc -kf all -aff -ct 2m -silent -o "$O" 2>/dev/null || \
+    "$K" -u "$URL" -d 2 -jc -ct 2m -silent -o "$O"
   echo "→ 端点存 $out/katana_endpoints.txt"
 }
 
-cmd_scan() { # 阶段2/4 模板扫（调 nuclei，非破坏）
+cmd_scan() { # 阶段2/4 模板扫（调 nuclei，非破坏，限速；必用本地 bin/templates）
   local TGT="${1:?url 或 -l 列表文件}"; local N; N=$(eng nuclei)
   [ -z "$N" ] && { echo "缺 nuclei，先跑 tools/install-toolchain.sh"; return 1; }
   local SLUG="${HUNTER_SLUG:-x}"; local out="$ROOT/scratch/$SLUG"; mkdir -p "$out"
+  # 本地模板库（install-toolchain 拉的）；没有则退回 nuclei 默认下载目录
+  local TDIR="$ROOT/bin/templates/http"
+  [ ! -d "$TDIR" ] && { echo "⚠️ 本地模板 $TDIR 不存在，退回 nuclei 默认模板(可能联网下载)"; TDIR=""; }
   echo "== hunter scan (nuclei, 限速10, 非破坏) =="
-  if [ -f "$TGT" ]; then
-    "$N" -l "$TGT" -tags exposed-panels,misconfig,auth-bypass -severity critical,high -rate-limit 10 -c 5 -silent -o "$out/nuclei.txt" 2>/dev/null
-  else
-    "$N" -u "$TGT" -tags exposed-panels,misconfig,auth-bypass -severity critical,high -rate-limit 10 -c 5 -silent -o "$out/nuclei.txt" 2>/dev/null
-  fi
-  echo "→ 命中存 $out/nuclei.txt (无输出=无命中)"
+  local args=()
+  if [ -f "$TGT" ]; then args+=("-l" "$(wp "$TGT")"); else args+=("-u" "$TGT"); fi
+  [ -n "$TDIR" ] && args+=("-t" "$(wp "$TDIR")")
+  args+=("-tags" "exposed-panels,misconfig,auth-bypass" -severity "critical,high" -rate-limit 10 -c 5 -o "$(wp "$out/nuclei.txt")")
+  # 数组传参（不碰 eval），不吞 stderr —— 失败/模板缺失要看得见，别假阴性
+  "$N" "${args[@]}" 2>&1 | grep -iE "nuclei v|no templates|FTL|ERR|found|probing" | head -6
+  echo "→ 命中存 $out/nuclei.txt (0命中且见到日志=真干净; 无日志=假阴性)"
 }
 
-cmd_fuzz() { # 阶段4 目录/端点 fuzz（调 ffuf，限速）
+cmd_fuzz() { # 阶段4 目录/端点 fuzz（调 ffuf，限速；默认小词表）
   local URL="${1:?url含FUZZ}"; local WL="${2:-$HERE/tools/wordlists/common.txt}"; local F; F=$(eng ffuf)
   [ -z "$F" ] && { echo "缺 ffuf，先跑 tools/install-toolchain.sh"; return 1; }
   [ -f "$WL" ] || { echo "词表不存在 $WL (先造 tools/wordlists/common.txt)"; return 1; }
   local SLUG="${HUNTER_SLUG:-x}"; local out="$ROOT/scratch/$SLUG"; mkdir -p "$out"
-  echo "== hunter fuzz $URL (ffuf, rate5) =="
-  "$F" -u "$URL" -w "$WL" -mc 200,204,301,302,307,401,403,405 -rate 5 -t 5 -retries 1 -o "$out/ffuf.txt" 2>/dev/null
+  echo "== hunter fuzz $URL (ffuf, rate5, 非破坏) =="
+  local WO="$(wp "$WL")" OF="$(wp "$out/ffuf.txt")"
+  # ffuf 2.x 无 -retries flag（只有 -retry）；不吞 stderr，失败能看见
+  "$F" -u "$URL" -w "$WO" -mc 200,204,301,302,307,401,403,405 -rate 5 -t 5 -o "$OF" 2>&1 | grep -iE "Error|flag|results|Found|[0-9]+$" | head -8
   echo "→ 命中存 $out/ffuf.txt"
 }
 
