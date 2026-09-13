@@ -13,3 +13,6 @@ Desktop.ini
 .DS_Store
 __pycache__/
 *.pyc
+
+# GitHub 推送凭证（只放本地，绝不入库/进聊天）
+.hunter-token
