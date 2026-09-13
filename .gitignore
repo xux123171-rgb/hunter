@@ -1,6 +1,9 @@
 # 工具二进制（~264MB）不入库，靠 tools/install-toolchain.sh 重建
 bin/*.exe
 
+# nuclei 模板库（数据资产，只留本地；tools/install-toolchain.sh 的 download_templates 拉取）
+bin/templates/
+
 # 工作产物 / 归档（每个目标打完即删或单独归档，不随项目走）
 scratch/
 journal/

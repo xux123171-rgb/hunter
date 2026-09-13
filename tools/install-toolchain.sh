@@ -31,3 +31,35 @@ fi
 echo; echo "=== 核对 bin/ ==="
 ls -la "$BIN" | grep -E '\.exe|MANIFEST'
 echo "PATH 铺开: export PATH=\"$BIN:\$PATH\"（见 bin/MANIFEST.md）"
+
+# ------------------------------------------------------------------
+# nuclei 模板本地化：根治国内直连拉取不稳
+# 官方 release zip 一次下到 bin/templates/（gitignore 挡出 git，数据资产只留本地）
+# ------------------------------------------------------------------
+download_templates() {
+  local dst="$BIN/templates"
+  if [ -d "$dst/http" ] && [ "$(find "$dst/http" -name '*.yaml' | wc -l)" -gt 100 ]; then
+    echo "==> nuclei 模板已就位（$(find "$dst/http" -name '*.yaml' | wc -l) 个 http 模板），跳过"
+    return 0
+  fi
+  rm -rf "$dst" scratch/nuclei-templates.zip
+  echo "==> 拉 nuclei-templates（官方 main zip，国内可加加速前缀）"
+  local url="https://github.com/projectdiscovery/nuclei-templates/archive/refs/heads/main.zip"
+  # 国内 GitHub 直连常断 → 自动试 ghproxy 加速镜像
+  for u in "https://ghproxy.net/$url" "$url"; do
+    if curl -sk4L -m 400 -o scratch/nuclei-templates.zip "$u" 2>/dev/null \
+       && [ "$(wc -c < scratch/nuclei-templates.zip | tr -d ' ')" -gt 1000000 ]; then
+      echo "  下载自: $u"
+      break
+    fi
+  done
+  if [ ! -s scratch/nuclei-templates.zip ]; then
+    echo "  模板下载失败（网络受限）——nuclei 仍可跑内置/少量模板，但不影响主流程（人工测为主）"; return 1
+  fi
+  unzip -q scratch/nuclei-templates.zip -d "$BIN/" 2>/dev/null && \
+    mv "$BIN/nuclei-templates-main" "$dst" 2>/dev/null
+  echo "  http 模板数: $(find "$dst/http" -name '*.yaml' 2>/dev/null | wc -l)"
+  # 让 nuclei 认本地库
+  echo "  用法: bin/nuclei.exe -l <urls> -templates-dir \"$dst\" -severity critical,high"
+}
+download_templates
