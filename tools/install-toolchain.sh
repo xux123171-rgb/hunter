@@ -59,7 +59,8 @@ download_templates() {
   unzip -q scratch/nuclei-templates.zip -d "$BIN/" 2>/dev/null && \
     mv "$BIN/nuclei-templates-main" "$dst" 2>/dev/null
   echo "  http 模板数: $(find "$dst/http" -name '*.yaml' 2>/dev/null | wc -l)"
-  # 让 nuclei 认本地库
-  echo "  用法: bin/nuclei.exe -l <urls> -templates-dir \"$dst\" -severity critical,high"
+  # 让 nuclei 认本地库：用 -t 指本地子目录（-tl 列出该目录全部）
+  echo "  用法: bin/nuclei.exe -u <url> -t \"$dst/http/misconfiguration\" -severity critical,high"
+  echo "  或全量: bin/nuclei.exe -u <url> -t \"$dst/http\" -rl 10（国内已本地化，不再联网拉模板）"
 }
 download_templates

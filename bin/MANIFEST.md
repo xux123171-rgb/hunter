@@ -9,7 +9,8 @@
 | `nuclei.exe` | v3.11.1 | 171M | 非破坏模板扫（exposed-panels/misconfig/cve/auth-bypass） | 阶段2/4 |
 | `ffuf.exe` | - | 16M | 目录/参数/隐藏路径 fuzz（限速） | 阶段4 |
 | `httpx.exe` | v1.12.0 (PD) | 66M | 活体指纹（tech stack/标题/状态码） | 阶段2 |
-| `cybermes-mcp.exe` | - | 16M | MCP 工具腿：子域/http_probe/fuzz/crawl/secret 扫/报告聚合 | 全程 |
+| `cybermes-mcp.exe` | - | 16M | MCP 工具腿：子域/http_probe/fuzz/crawl/secret 扫/报告聚合（可选加速器，不用也能全流程） | 全程 |
+| `templates/`（nuclei 模板库） | ~11k http 模板 | 本地 | 本地化根治国内拉取不稳；`bin/templates/` 只留本地不入 git，`tools/install-toolchain.sh` 的 `download_templates` 拉取 | 阶段2/4 |
 
 > `httpx` 必须是 **ProjectDiscovery httpx**（指纹器），不是 Python 的 `httpx` 包（那是 HTTP 客户端库，完全两码事）。装错了阶段2 就废。
 
