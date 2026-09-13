@@ -1,0 +1,15 @@
+# 工具二进制（~264MB）不入库，靠 tools/install-toolchain.sh 重建
+bin/*.exe
+
+# 工作产物 / 归档（每个目标打完即删或单独归档，不随项目走）
+scratch/
+journal/
+reports/
+*.tmp
+
+# 系统
+Thumbs.db
+Desktop.ini
+.DS_Store
+__pycache__/
+*.pyc

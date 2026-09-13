@@ -1,0 +1,59 @@
+# hunter — 合规 Web 漏洞挖掘流水线
+
+一套**全谱系、严重→低危、零落地**的 Web 漏洞挖掘方法论 + 自动化工具链。
+核心思想：**脑子是 SOP（打哪类洞、什么顺序、实锤/判死标准），腿是工具（cybermes MCP + ffuf/katana/nuclei/httpx + bash 脚本）**。
+不靠"经验型"预设打法——每个目标从头走完 6 个阶段，出洞按实锤判定，判死按证据判定。
+
+> 仅用于**授权范围内**的安全测试（SRC/补天/漏洞盒子等）。默认合规：注入只证可读、payload 克制（sleep 1/回显/读 1 行）、越权读限额、禁扫描器/社工/内网渗透/DDoS。
+
+## 目录
+```
+hunter/
+├── SOP.md                # 脑子：6 阶段作战流程（阶段0范围→6报告）
+├── tools/
+│   ├── EXEC.md           # 腿：工具链、cybermes 接线、截图配方、补天字段、清理、判死速查
+│   ├── hunt.sh           # 一键跑 阶段0-3（自动部分），把面摊开给 Agent
+│   └── hunt-recon.sh     # 阶段1+2：子域枚举 + 官网扫 + 活体指纹普查
+├── templates/
+│   └── report-btt-vulbox.md   # 补天/盒子可复制报告模板
+├── journal/<目标>/       # 出洞归档：scope/report/finding/截图清单
+├── scratch/<目标>/       # 工作产物（assets/probe/endpoints），打完即删
+└── reports/<目标>/       # 报告 + 证据
+```
+
+## 快速开始（一个目标）
+```bash
+# 1) 一键侦察（阶段0-3，自动）
+bash tools/hunt.sh <domain> [slug] [scope.yaml]
+# 2) 阶段4 洞型测试（严重→低）由 Agent 按 SOP 4.1→4.4 逐型打，
+#    出实锤写 reports/<slug>/finding_<n>.md，判死写 scratch/<slug>/deadlines.md
+# 3) 阶段5 过 7 问；阶段6 用 templates/report-btt-vulbox.md 出报告
+```
+
+## 六阶段
+| 阶段 | 内容 | 自动化程度 |
+|---|---|---|
+| 0 范围红线 | 授权范围逐字抄、备案号不脑补、限额记满 | 人工填 scope.md |
+| 1 资产测绘 | 子域枚举（DoH 批量 + crt.sh）+ 官网源码扫 IP:端口 | ✅ 脚本 |
+| 2 活体普查 | 每活资产只看响应头指纹 → 映射洞型 | ✅ 脚本 + nuclei |
+| 3 面绘制 | 端点 × 前置条件 × 参数矩阵 | ✅ katana 爬虫 |
+| 4 洞型测试 | 严格 严重→低，出实锤即停该型 | 🔧 Agent 判断 |
+| 5 实锤复核 | 报前 7 问（可复现/真影响/对照组） | 🔧 Agent |
+| 6 报告 | 可复制纯文本 + 截图清单 + 平台适配 | 📋 模板 |
+
+## 硬约束（铁律）
+1. **零落地**：只看响应头/状态码/字节数/前几百字节，不下全量 JS/大文件。
+2. **实锤**：数据真泄露/真越权/真 RCE/真读文件才算洞；500 报错/返回 success/WAF 拦截页不算。
+3. **判死证据制**：判死必须写证据进 journal，不靠"经验"（lzdxdyyy 型 = 单 www+强 WAF+子域全 404）。
+4. **payload 克制**：sleep 1、回显、读 1 行表；不拖全库、不写破坏性 payload。
+
+## 工具依赖
+- `ffuf` / `katana` / `nuclei` / `httpx`（ProjectDiscovery）+ `cybermes-mcp`（工具腿），全部在项目 `bin/` 自包含，清单见 `bin/MANIFEST.md`
+- **cybermes MCP**（子域发现/HTTP 指纹/端点 fuzz/爬虫/nuclei 模板扫/secret 扫/报告聚合）——工具腿，技能库本机为空
+- 本机 IPv6 不稳 → 所有 curl 强制 `-4`；DNS 走阿里 DoH `dns.alidns.com`
+
+## 判死速查（不再磕）
+- 未鉴权面全 404/403 + 无弱口令入口 + 无 .git/.bak 可读 → 未鉴权线判死
+- 拿不到 2 可用登录态（审核制/滑块/极验）→ 越权/IDOR 线判死
+- 自研 WAF 全拦 + 3 种绕过手法均拦 → WAF 线判死
+- 单 www + 强 WAF + 子域全 404 → 全目标判死
