@@ -35,7 +35,7 @@ if [ -n "$TOK" ]; then
   for i in $(seq 1 40); do
     CUR="$(wc -c < "$OUT" 2>/dev/null | tr -d ' ')"
     RANGE=(); [ -n "$CUR" ] && RANGE=(-C "$CUR")
-    curl -sk4 -m 600 "${AUTH[@]}" "${RANGE[@]}" -o "$OUT" "$ASSET_API" 2>/dev/null
+    curl -sk4L -m 600 "${AUTH[@]}" "${RANGE[@]}" -o "$OUT" "$ASSET_API" 2>/dev/null
     gunzip -t "$OUT" 2>/dev/null && { how="release-api"; echo "  ✓ 拉完（$(wc -c < "$OUT"|tr -d ' ') B，第 $i 轮）"; break; }
     echo "  已有 $(wc -c < "$OUT" 2>/dev/null | tr -d ' ') B，3s 后续拉…"
     sleep 3
