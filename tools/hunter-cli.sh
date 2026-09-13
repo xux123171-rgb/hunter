@@ -67,7 +67,7 @@ cmd_recon() { # 阶段1+2 一键
   bash "$HERE/hunt-recon.sh" "$1" "${2:-${1//./_}}"
 }
 
-cmd_probe() { # 阶段2 活体指纹（自研 curl，不靠 cybermes）
+cmd_probe() { # 阶段2 活体指纹（纯自研 curl）
   local URL="${1:?url}"
   echo "== hunter probe $URL =="
   local body

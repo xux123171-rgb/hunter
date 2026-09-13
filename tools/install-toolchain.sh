@@ -20,12 +20,14 @@ for t in katana.exe nuclei.exe ffuf.exe httpx.exe; do
   [ -f "$GBIN/$t" ] && cp -f "$GBIN/$t" "$BIN/$t" && echo "  拷 $t" || echo "  缺 $GBIN/$t"
 done
 
-# 可选加速腿（第三方 MCP，非必需——去掉后 tools/ 全部自研工具仍可全流程）
-# 2026-09-13 起默认不装；要打洞一律走自有 tools/（hunter-cli/mailacct/xssprobe）+ 4 个引擎
-if [ "${INSTALL_CYPHER:-}" = "1" ]; then
-  CM_SRC="$HOME/AppData/Local/hermes/bin/cybermes-mcp.exe"
-  [ -f "$CM_SRC" ] && cp -f "$CM_SRC" "$BIN/cybermes-mcp.exe" && echo "  [可选] 已拷 cybermes-mcp"
-fi
+# 我们的 hunter-mcp（可选加速器）：脑子(SOP)留 skill，腿做成 MCP 类型化工具，全指向本项目
+# 起法（Hermes config.yaml）：
+#   mcp_servers:
+#     hunter:
+#       command: "C:\\Users\\ThinkPad\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe"
+#       args: ["C:\\Users\\ThinkPad\\Documents\\src-xiaoxu\\hunter\\mcp\\server.py"]
+# venv 重建：cd mcp && uv venv .venv && uv pip install -q 'mcp[cli]<2'
+echo "  hunter-mcp（可选）: $HERE/mcp/server.py，注册见上方注释；无它也能纯 tools/ 全流程"
 
 echo; echo "=== 核对 bin/ ==="
 ls -la "$BIN" | grep -E '\.exe|MANIFEST'
