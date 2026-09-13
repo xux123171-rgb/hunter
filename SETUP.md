@@ -3,6 +3,18 @@
 > 目标：任何一台 Windows 机器，照这份装齐 → 仓库里**全部 8 条腿**都能跑。
 > 已实测基线环境（2026-09，本项目开发/验收机）：Windows 10 + Git Bash + Go 1.27 + uv + Hermes Agent。
 
+## 〇、发行版全量包（最快路线，无 Go 无代理）
+
+仓库 Releases 的 **`hunter-full-vX.zip`（~150MB，含 4 引擎 + 11340 模板 + 全部代码）**，解压后：
+
+```bash
+unzip hunter-full-v0.2.zip -d C:\hunter && cd C:\hunter
+bash tools/install-hermes.sh    # 引擎/模板已在包里 → 全跳过，只建 venv + 装 skill + 注册 MCP
+```
+
+前置仅 Git for Windows（git-bash）+ Python/uv（Hermes 自带则免）。**不装 Go、不拉模板、不开代理。**
+模板官方更新了不用下全量包：单独传 v0.1 的 `nuclei-templates.tar.gz`（~10MB）覆盖 `bin/templates/`。
+
 ## 一、系统前置（一次性装）
 
 | 组件 | 版本基线 | 装法 | 用途 |

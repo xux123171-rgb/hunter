@@ -79,19 +79,41 @@ bash tools/hunt.sh <domain> [slug] [scope.md]
 - 自研 WAF 全拦 + 3 种绕过手法均拦 → WAF 线判死
 - 单 www + 强 WAF + 子域全 404 → 全目标判死
 
-## 换机迁移（clone 即用）
-仓库自带全部**脑子**（sop/ + references/ + PLAYBOOK.md）+ 全部**自研腿**（tools/ + mcp/server.py），
-换机 3 步（完整环境清单/变量/踩坑表见 **`SETUP.md`**）：
+## 换机迁移（两条路，选快的）
 
-```bash
-git clone <repo> hunter && cd hunter
-# 前置：装 Go + uv（引擎编译 / MCP venv，见 SETUP.md 第一节）
-bash tools/install-toolchain.sh   # 一条命令重建 bin/ 4引擎 + 11k nuclei模板 + mcp/.venv + playwright
-# Hermes 里注册 MCP（可选，不装也能纯 CLI 全流程）：
-#   mcp_servers.hunter.command = <repo>/mcp/.venv/Scripts/python.exe
-#   mcp_servers.hunter.args    = [<repo>/mcp/server.py]
-# 别的机器改 HUNTER_HOME 指向你的 clone 路径（自动发现逻辑在 mcp/server.py，无需改代码）
+### 路线 A：发行版全量包（推荐，无 Go 无代理也行）
+仓库 Releases 页下载 **`hunter-full-vX.zip`（~150MB）**——里面已含代码 + 4 引擎 .exe + 11340 nuclei 模板，
+解压后一条命令复活（只补 venv/skill/MCP 注册，秒级）：
+
+```
+1. 登录 github.com → xux123171-rgb/hunter → Releases → 下载 hunter-full-vX.zip（浏览器下，不用 token）
+2. 解压到任意目录（例如 C:\hunter）
+3. bash tools/install-hermes.sh        # 引擎/模板已在包里 → 全跳过，只建 venv + 装 skill + 注册 MCP
+4. 在 Hermes 里说「打 www.xxxx.com」即可
 ```
 
-不在 git 里（体积大，靠脚本重建）：`bin/*.exe`（go install）、`bin/templates/`（官方 zip + ghproxy 兜底）、
-`mcp/.venv`（uv + mcp[cli]<2）。国内机 GitHub 直连断流时走 `ghproxy.net` 前缀，脚本已内置。
+> 前置只要：Git for Windows（git-bash）+ Python/uv（建 venv，Hermes 自带）。**不用装 Go、不用拉模板、不用开代理。**
+
+### 路线 B：git clone 源码路线（要改代码 / 换 Mac / 引擎跟新版）
+```bash
+git clone <repo-url> hunter && cd hunter
+# 前置：Go + uv（见 SETUP.md 第一节）
+bash tools/install-toolchain.sh   # 现编 4 引擎 + 拉 11k 模板（带 .hunter-token 时无代理可拉）
+bash tools/install-hermes.sh      # 建 venv + 装 skill + 注册 MCP
+```
+
+### 发行版维护（两级包，各管各的）
+| 包 | 内容 | 什么时候重传 |
+|---|---|---|
+| `hunter-full-vX.zip`（~150MB，全量） | 代码 + 4 引擎 + 模板 | 引擎大版本更新 / 想让包跟最新代码 |
+| `nuclei-templates.tar.gz`（~10MB，仅模板） | 11k 官方模板 | 官方模板更新（几 MB，比全量快 15 倍） |
+
+打全量包：`python -m zipfile -c scratch/hunter-full-vX.zip <各目录>`（排除 .git/.venv/scratch/.hunter-token，脚本见仓库内打包注释）。
+上传：Release 的 Upload assets（150MB 走浏览器慢就开代理，命令行见 `tools/push-release.sh` 说明）。
+
+### 日常测试
+改完代码先跑离线回归（30 秒、零真实请求、红绿分明）：
+```bash
+bash tools/test.sh                          # ① MCP 判定 12 断言 ② 引擎腿 7 项 ③ 幂等检测
+mcp/.venv/Scripts/python.exe mcp/full_test.py --check-live   # 打真实目标（需网络+授权）
+```
