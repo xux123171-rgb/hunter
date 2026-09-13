@@ -6,7 +6,7 @@
 #     hunter subs   <domain>            阶段1 子域枚举(我们自研: 阿里DoH批量 + crt.sh)
 #     hunter scope  <domain>            阶段0 生成 scope.md 占位
 #     hunter recon  <domain> [slug]     阶段1+2 一键侦察(资产表+官网扫+活体指纹)
-#     hunter probe  <url>               阶段2 活体指纹(我们自研 curl, 不靠 cybermes)
+#     hunter probe  <url>               阶段2 活体指纹(纯自研 curl)
 #     hunter crawl  <url>               阶段3 面绘制(调 katana)
 #     hunter scan   <url-or-listfile>   阶段2/4 模板扫(调 nuclei, 非破坏, 限速)
 #     hunter fuzz   <url> [wordlist]    阶段4 目录/端点 fuzz(调 ffuf, 限速)
@@ -139,6 +139,6 @@ case "${1:-help}" in
   help|*)
     grep -E '^#   |^#     ' "${BASH_SOURCE[0]}" | sed 's/^# *//' | head -20
     echo; echo "引擎依赖在 $BIN (nuclei/ffuf/katana/httpx，第三方底层，靠 tools/install-toolchain.sh 重建)"
-    echo "cybermes-mcp 为可选加速器（bin/cybermes-mcp.exe），非必需——上面所有子命令都能纯 bin/ 自跑。"
+    echo "本 CLI 的 subs/probe 为纯自研，不依赖任何第三方 MCP——所有子命令都能纯 bin/ 自跑。"
     ;;
 esac

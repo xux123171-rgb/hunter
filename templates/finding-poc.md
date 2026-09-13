@@ -1,9 +1,9 @@
-# findings 模板（对齐 cybermes reports 结构，阶段4/5 出洞填这个）
+# findings 模板（阶段4/5 出洞填这个，结构化 + 可复制）
 
 > 放 `reports/<slug>/findings/<severity>_<vuln_name>.md`（snake_case，无方括号）。
 > `findings/` 只放**已确认**的洞；信息性观察/缺头/版本泄露/阴性测试 → 归 `reports/<slug>/evidence/recon_notes.md`。
 > 每个洞配一个可独立跑的 PoC：`reports/<slug>/pocs/poc_<vuln_name>.py`。
-> 出完跑 `cybermes_aggregate_report`（或本地 aggregate）更新 SUMMARY.md/metadata.json。
+> 出完人工整理 `reports/<slug>/SUMMARY.md` + `metadata.json`（自研 aggregate，无第三方依赖）。
 
 ## finding_<severity>_<name>.md 模板
 ```

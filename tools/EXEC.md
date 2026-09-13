@@ -1,31 +1,32 @@
 # 执行手册（SOP 的"腿"：工具、截图、清理、补天配方）
 
 > 脑子 = sop/SOP.md（打哪类洞、什么顺序、实锤/判死标准）。
-> 本文件 = 怎么落地执行：工具链、cybermes MCP 工具腿、截图配方、补天字段配方、目标清理。
-> 旧 bug-bounty-hunting skill 的三块有用部分已吸收进本文件，碎片打法已退役。
+> 本文件 = 怎么落地执行：工具链（全自有 bin/ + 自研 tools/）、截图配方、补天字段配方、目标清理。
+> 第三方 MCP（cybermes）已移除，全流程走项目自研 `tools/hunter-cli.sh` 编排 + `bin/` 底层引擎。
 
 ## 一、工具链（本机 Windows + git-bash）
-- 二进制在项目 `bin/`（自包含）：`ffuf.exe`、`katana.exe`(v1.7)、`nuclei.exe`(v3.11.1)、`httpx.exe`(PD v1.12.0)、`cybermes-mcp.exe`(v3.4.2)
+- 二进制在项目 `bin/`（自包含，第三方底层引擎）：`ffuf.exe`(v2.1)、`katana.exe`(v1.7)、`nuclei.exe`(v3.11.1)、`httpx.exe`(PD v1.12.0)
+- 自研工具在 `tools/`（脑子腿）：`hunter-cli.sh`（subs/probe 纯自研）、`mailacct.py`（合规双邮箱）、`xssprobe.py`（Playwright 三态判定）
 - 用法先铺 PATH：`export PATH="$(cd "$(dirname "$0")/.." && pwd)/bin:$PATH"`；重装见 `tools/install-toolchain.sh`，清单见 `bin/MANIFEST.md`
-- subfinder 二进制装不了（GitHub release 国内断流），**走 cybermes 的 crt.sh 引擎兜底**（实测可跑出子域）
+- subfinder 二进制装不了（GitHub release 国内断流），**走 `hunter-cli subs` 的阿里 DoH + crt.sh 自研引擎补长尾**（实测可跑出子域）
 - 本机 IPv6 不稳 → 所有 curl 强制 `-4`（阿里 DoH：`https://dns.alidns.com/resolve?name=…`）
-- 浏览器 CDP 那条线当前不可用；截图走 Playwright headless（下面第三节）
+- 浏览器存储 XSS 走 `tools/xssprobe.py`（Playwright headless 三态判定 A/B/C，见第三节）
 
-## 二、cybermes MCP 工具腿（挂到 SOP 阶段）
-调用统一走 tool_call，一次一个本地工具（不可混批）。
+## 二、自有工具腿（挂到 SOP 阶段，全自研无第三方 MCP）
+编排统一走 `tools/hunter-cli.sh`（子命令见其 help），底层引擎在 `bin/`。
 
-| SOP 阶段 | cybermes 工具 | 用法 |
+| SOP 阶段 | 自有腿 | 用法 |
 |---|---|---|
-| 1 资产测绘 | `cybermes_subdomain_discovery` | `prefer_subfinder=false`（走 crt.sh），补 DoH 前缀批量 |
-| 2 活体普查 | `cybermes_http_probe` | 每个活子域 1 次，拿 server/cookie/404 指纹 |
-| 3 面绘制 | `cybermes_recon_crawl` | katana 爬端点 + JS，`max_endpoints` 控量 |
-| 4 洞型-模板 | `cybermes_nuclei_scan` | 非破坏模板扫（exposed-panels/misconfig/cve），`rate_limit` 10 |
-| 4 洞型-fuzz | `cybermes_fuzz_endpoints` | 隐藏路径/参数，`status_codes` 带 401/403 抓越权面 |
-| 全程 | `cybermes_scan_secrets` | 扫响应/JS 里的凭证 AK/SK（48 模式） |
-| 6 报告 | `cybermes_record_finding` / `record_evidence` / `aggregate_report` | 落 journal、聚合 SUMMARY/report.html/PDF |
-| 范围核验 | `cybermes_validate_scope` | 每个打之前对 scope.yaml 验目标在范围内 |
+| 1 资产测绘 | `hunter-cli subs` | 阿里 DoH 批量 200 前缀 + crt.sh，补长尾子域 |
+| 2 活体普查 | `hunter-cli probe` | 每个活子域 1 次，纯 curl 拿 server/cookie/404/WAF 指纹 |
+| 2 活体普查 | `hunter-cli scan` | 调 `bin/nuclei.exe` 非破坏模板扫，`bin/templates/` 本地库，限速 10 |
+| 3 面绘制 | `hunter-cli crawl` | 调 `bin/katana.exe` 爬端点+JS，`-ct` 控量 |
+| 4 洞型-fuzz | `hunter-cli fuzz` | 调 `bin/ffuf.exe` 隐藏路径/参数，限速、带 401/403 抓越权面 |
+| 4 存储 XSS | `tools/xssprobe.py` | Playwright 元素级 canary 判 A/B/C |
+| 越权双账号 | `tools/mailacct.py` | 邮箱双号（收件侧），手机号用户侧 |
+| 6 报告 | 人工整理 | 骨架见 `templates/finding-poc.md`，补天/盒子字段见第四节 |
 
-注意：本机 cybermes 的"技能库"（`list_skills`/`skills://index`/知识库）是**空的**，别指望它自动给打法——脑子永远是 SOP，cybermes 只提供工具腿 + 报告聚合。
+注意：第三方引擎（nuclei/ffuf/katana/httpx）只作为 `bin/` 底层依赖被调用，不对外冒头；第三方 MCP（cybermes）已移除，不再有"技能库/知识库"依赖——脑子永远是 `sop/SOP.md`。
 
 ## 三、截图配方（用户负责截图，我负责文字/PoC + 给截图清单）
 - **归属证明三张必做**：`1_归属_首页`(官网 logo+厂商名) `2_归属_备案号`(页脚 ICP 原文) `3_归属_证据位置`

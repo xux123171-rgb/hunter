@@ -18,7 +18,7 @@ dohc() { # CNAME
     | grep -oE '"type":5,"data":"[^"]+"' | sed 's/.*"data":"//;s/"//' | sort -u | tr '\n' ' '
 }
 
-echo "==> [$DOM] 阶段1: 子域枚举 (DoH批量200前缀; crt.sh走cybermes引擎补)"
+echo "==> [$DOM] 阶段1: 子域枚举 (DoH批量200前缀; crt.sh 走 hunter-cli subs 自研补长尾)"
 CT=$(for p in www app api wap m h5 admin oa mail portal test dev old shop new cms erp crm hr srm wms ebidding e bidding zhaobiao openapi open api2 v1 v2 mobile applet mp pay sms jk jiankang yuyue guahao register login sso iam id oss bucket storage cdn img static assets file download dcdn gw gateway svc web page site news bbs forum forum1 blog wiki help support faq contact about hr2 it info data bigdata ai iot edge cloud vc vc2 vpn ssl cert log syslog monitor zabbix grafana kibana jenkins gitlab git svn gitea harbor registry nexus maven pypi npm docker k8s kubernetes etcd redis mysql oracle db sql mssql postgres pg mssql2 ldap ad dc nfs ftp sftp s3 minio cos tos oss2 obs aso eip slb alb nlb clb waf ddos antiddos antiwebapp botshield botshield2 edgeone esa waf2 aegis lychee yun jhelper jkyy yym ydy pacs his emr lis rpms 120 114 95598 95518 400 800 100 200 300 4008008009 4001000 8009 5598 zgyy zyy tjyy tj 12345 12346 12347 11112 22223 33334 44445 55556 66667 77778 88889 99990; do
   echo "$p.$DOM"
 done | while read -r s; do ip=$(doh "$s"); [ -n "$ip" ] && echo "$s => $ip"; done | grep '=>' | cut -d' ' -f1)

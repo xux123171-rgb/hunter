@@ -19,3 +19,6 @@ __pycache__/
 
 # GitHub 推送凭证（只放本地，绝不入库/进聊天）
 .hunter-token
+
+# hunter MCP 服务的 Python 虚拟环境（mcp 包，靠 uv venv 重建）
+mcp/.venv/

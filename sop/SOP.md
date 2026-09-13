@@ -87,11 +87,11 @@
 6. 严重性是否过定级标准（按最远可达点，不夸大、不前后不一）？
 7. 对照组做了吗（同参合法值 vs payload 的响应 diff）？
 
-## 阶段 6 — 报告产出（用户格式：可复制纯文本 + 对齐 cybermes 报告结构）
-- **工作区对齐 cybermes**：`reports/<slug>/{SUMMARY.md, metadata.json, findings/, pocs/, evidence/recon_notes.md}`
+## 阶段 6 — 报告产出（用户格式：可复制纯文本 + 结构化 finding）
+- **工作区**：`reports/<slug>/{SUMMARY.md, metadata.json, findings/, pocs/, evidence/recon_notes.md}`
   - `findings/` 只放**已确认**洞（snake_case，无方括号）；INFO/缺头/版本泄露/阴性测试全归 `evidence/recon_notes.md`
   - 每个 finding 配 `pocs/poc_<name>.py`（骨架见 templates/finding-poc.md）
-  - 出完跑 `cybermes_aggregate_report`（或本地 aggregate）刷新 SUMMARY.md/metadata.json；要 PDF 才跑 `cybermes_generate_pdf`
+  - 出完人工整理 SUMMARY.md/metadata.json（自研，无第三方聚合依赖）
 - 每洞三块，直接框起来可复制：简要描述 / 详细细节（含归属链、影响场景写具体不写空话）/ PoC（payload 克制：sleep 1、回显、读 1 行表）
 - + 截图清单逐张命名（用户拍）
 - + 平台适配：补天公益=积分；漏洞盒子企业=现金，报告加 CVSS 向量

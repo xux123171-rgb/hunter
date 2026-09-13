@@ -20,12 +20,11 @@ for t in katana.exe nuclei.exe ffuf.exe httpx.exe; do
   [ -f "$GBIN/$t" ] && cp -f "$GBIN/$t" "$BIN/$t" && echo "  拷 $t" || echo "  缺 $GBIN/$t"
 done
 
-# cybermes-mcp：MCP 服务器，本机在 $HOME/AppData/Local/hermes/bin/cybermes-mcp.exe
-CM_SRC="$HOME/AppData/Local/hermes/bin/cybermes-mcp.exe"
-if [ -f "$CM_SRC" ]; then
-  cp -f "$CM_SRC" "$BIN/cybermes-mcp.exe" && echo "  拷 cybermes-mcp"
-else
-  echo "  未找到 $CM_SRC；cybermes-mcp 可选（有它走 MCP 工具腿，没它走 Go 二进制 fallback）"
+# 可选加速腿（第三方 MCP，非必需——去掉后 tools/ 全部自研工具仍可全流程）
+# 2026-09-13 起默认不装；要打洞一律走自有 tools/（hunter-cli/mailacct/xssprobe）+ 4 个引擎
+if [ "${INSTALL_CYPHER:-}" = "1" ]; then
+  CM_SRC="$HOME/AppData/Local/hermes/bin/cybermes-mcp.exe"
+  [ -f "$CM_SRC" ] && cp -f "$CM_SRC" "$BIN/cybermes-mcp.exe" && echo "  [可选] 已拷 cybermes-mcp"
 fi
 
 echo; echo "=== 核对 bin/ ==="
@@ -64,3 +63,20 @@ download_templates() {
   echo "  或全量: bin/nuclei.exe -u <url> -t \"$dst/http\" -rl 10（国内已本地化，不再联网拉模板）"
 }
 download_templates
+# ------------------------------------------------------------------
+# hunter MCP 服务 venv（mcp/server.py 跑起来的 Python 环境）
+# ------------------------------------------------------------------
+setup_mcp() {
+  local mcpdir="$HERE/mcp"
+  mkdir -p "$mcpdir"
+  if [ -f "$mcpdir/.venv/Scripts/python.exe" ] || [ -x "$mcpdir/.venv/bin/python" ]; then
+    echo "==> hunter-mcp venv 已存在，跳过（mcp/.venv）"
+    return 0
+  fi
+  echo "==> 建 hunter-mcp venv（需 uv；mcp<2 的 FastMCP）"
+  command -v uv >/dev/null 2>&1 || { echo "  缺 uv，先 install uv 再跑"; return 1; }
+  ( cd "$mcpdir" && uv venv .venv 2>&1 | tail -2 \
+      && uv pip install --python "$(uv python find .venv 2>/dev/null || echo .venv)" -q 'mcp[cli]<2' 2>&1 | tail -2 )
+  echo "  起服务: $(cmd v mcp/.venv/Scripts/python.exe) mcp/server.py（见 mcp/server.py 头部注册说明）"
+}
+setup_mcp
