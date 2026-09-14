@@ -201,20 +201,34 @@ cmd_matrix() { # 阶段4 开工骨架：可打面 A1-A9 × 活资产 的矩阵�
   local out; out=$(scratchdir "$SLUG"); mkdir -p "$out"
   local m="$out/matrix.md"
   [ -f "$m" ] && { echo "矩阵已存在 → $m（续格不重建）"; return 0; }
+  # D4: 活资产列自动填——优先 recon 产的 _assets.md（| 子域 | IP | CNAME |），否则 _subs_raw.txt，都没有才占位
+  local assets=()
+  if [ -f "$out/_assets.md" ]; then
+    # 只认含 '.' 的子域单元格（子域必有域名点），天然滤掉表头"子域"与分隔行"---"
+    assets=($(awk -F'|' '$2 ~ /\./ {gsub(/^ +| +$/,"",$2); print $2}' "$out/_assets.md" | sort -u | head -8))
+  elif [ -f "$out/_subs_raw.txt" ]; then
+    assets=($(grep -vE '^-$|^$' "$out/_subs_raw.txt" | sort -u | sed 's/ =>.*//' | grep -v '^$' | head -8))
+  fi
+  if [ ${#assets[@]} -eq 0 ]; then assets=(资产1 资产2 资产3); fi
+  local asetsrc="${out/_assets.md}"; [ -f "$out/_assets.md" ] && asetsrc="_assets.md" || asetsrc="_subs_raw.txt(或占位)"
+  local head="" sep=""
+  head="| 可打面\\资产"; for a in "${assets[@]}"; do head="$head | $a"; done
+  sep="|---|---"; for a in "${assets[@]}"; do sep="$sep|---"; done
   { echo "# 攻击面矩阵 $DOM（每格终态：实锤→finding / 已试(记请求数+响应特征) / 判死(证据编号进 deadlines.md)）"
+    echo "活资产列源: $asetsrc（$(echo "${assets[*]}" | tr ' ' '|')）"
     echo
-    echo "| 可打面\\资产 | 资产1 | 资产2 | 资产3 |"
-    echo "|---|---|---|---|"
+    echo "$head"
+    echo "$sep"
+    local a row
     for a in "A1子域多渠道(词表+CT+前端挖域+Wayback+GH+App+ICP姊妹域)" "A2公网IP非标端口" "A3CDN源站直连" "A4框架管理面(actuator/druid/nacos/swagger)" "A5泄露文件(.git/.env/.bak)" "A6认证流程(注册/找回/验证码/SSO)" "A7业务接口(未鉴权直读+双账号IDOR)" "A8输入回显(注入/上传/XSS)" "A9私有密钥AK/SK"; do
-      echo "| $a | - | - | - |"
+      row="| $a"; for x in "${assets[@]}"; do row="$row | -"; done
+      echo "$row"
     done
     echo
     echo "> 判死前置=最低三件套(hunter_scan+hunter_fuzz+hunter_crawl)或可复核豁免；矩阵清空才准宣布打完。"
     echo "> 401/403 面先过 waf-bypass.md §0.5 绕过字典(≤3手法)再谈判死。"
   } > "$m"
-  # 活资产列建议自动填（scratch 里有 _subs_raw/_assets 就拿来当列）
-  local src; for src in "$out/_subs_raw.txt" "$out/assets.md"; do [ -f "$src" ] && { echo "可打资产源: $src（把列名改成真实活资产）"; break; }; done
-  echo "矩阵骨架 → $m"
+  echo "矩阵骨架（含真实活资产列）→ $m"
 }
 
 cmd_report() { # 阶段6 聚合骨架
