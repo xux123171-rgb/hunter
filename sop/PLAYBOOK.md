@@ -36,6 +36,8 @@ nuclei 非破坏扫：`bin/nuclei.exe -u <活资产URL> -t "bin/templates/http/m
 
 ### 阶段3 面绘制（katana 爬）
 端点 × 前置(cookie/签名) × 参数矩阵。JS 只下 <200KB：提 API host、AK/SK（前端公共 key 不当洞）、内网 IP、隐藏路由。每端点 1 次最小请求定性。记 scratch/endpoints.md。
+**表单/接口参数名必抠源码（huntlab 压测教训：按"惯例"猜 username/password 白打两轮，真身是 u/p）**：POST 前必 curl 表单页提 `<input name=` / 从 JS 提 body 字段，写进参数矩阵，不许猜。
+**注入类 payload 失败先自查语法（FP 排除第 0 步）**：闭合括号/引号/注释符/编码各错过一遍之前，不许下"注入不通"结论——huntlab 曾因漏 `)` 误判 SQLi 失败，补上立即通。
 
 ### 阶段4 洞型测试（Agent 判断，严格 严重→低，出实锤即停该型）
 **影响按最远可达点定级**（primitive→impact 链，入口只决定能不能进，不决定值多少）。对每端点先发散假设，试出 primitive（可控原语），再推到最坏 impact。
