@@ -97,3 +97,15 @@ fi
 
 echo
 say "完。现在在 Hermes 里说「打 www.xxxx.com」即可（脑子 skill / 腿 MCP 都在）。"
+
+# ── ① MCP 热更提示：改 server.py 后旧常驻进程不会自动生效 ─────────────
+# 根因：本轮 recon 腿返回 WSL 乱码，代码其实修对了，但当时 Hermes 里挂着的是旧代码进程。
+# 检测是否有常驻 hunter MCP 进程，有则提示重启（改代码 → 重启 Hermes，新进程才读新 server.py）。
+say "① MCP 热更检测"
+if command -v hermes >/dev/null 2>&1; then
+  echo "   若你刚改了 mcp/server.py 或 tools/：常驻 MCP 进程不会自动读新代码。"
+  echo "   在 Hermes 里说「重启」或 /new，让 hunter MCP 重新拉起，新逻辑才生效。"
+  echo "   （离线回归仍可用：bash tools/test.sh —— 它起独立 server 实例，测的就是新代码）"
+else
+  echo "   改 server.py 后需重启 Hermes 让新代码生效；test.sh 起独立实例不受影响。"
+fi

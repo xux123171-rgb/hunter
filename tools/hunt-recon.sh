@@ -7,7 +7,13 @@ DOM="${1:?usage: hunt-recon.sh <domain> [slug]}"
 SLUG="${2:-${DOM//./_}}"
 # 产物根目录：默认落仓库内 scratch/（clone 即用）；HUNTER_SCRATCH 可覆盖（如本机指回 D:/research/scratch）
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT="${HUNTER_SCRATCH:-$HERE/scratch}/$SLUG"
+OUT="${HUNTER_SCRATCH:-$HERE/scratch}"
+# ⑤ 防嵌套：HUNTER_SCRATCH 已按目标命名（basename == slug）时不再叠 <slug>/<slug>
+if [ -n "${HUNTER_SCRATCH:-}" ] && [ "$(basename "$HUNTER_SCRATCH")" = "$SLUG" ]; then
+  :
+else
+  OUT="$OUT/$SLUG"
+fi
 mkdir -p "$OUT"
 UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0 Safari/537.36"
 
@@ -43,7 +49,11 @@ done <<< "$CT"
 cat "$OUT/_assets.md"
 
 echo; echo "==> 阶段2: 官网源码扫 (内网IP:端口 / JS / 备案)"
-curl -sk4 -m 15 -A "$UA" "https://www.$DOM/" -o "$OUT/_home.html" -w "www -> HTTP %{http_code} %{size_download}B ip=%{remote_ip}\n"
+# ③ 官方 curl -o/-D 在 MSYS 会写 0 字节坑 → 全走 shell 重定向 + wc -c 验存
+curl -sk4 -m 15 -A "$UA" "https://www.$DOM/" > "$OUT/_home.html" 2>/dev/null
+HSZ=$(wc -c < "$OUT/_home.html" 2>/dev/null | tr -d ' ')
+echo "www -> ${HSZ:-0}B (shell 重定向验存，0B=真下不到而非 -o 假象)"
+[ "${HSZ:-0}" -eq 0 ] && echo "⚠️ 首页 0 字节，后续 grep 结果不可信（站死或 WAF 盾页）"
 grep -oE '(?:[0-9]{1,3}\.){3}[0-9]{1,3}(:[0-9]{2,5})?' "$OUT/_home.html" | grep -vE '^(127\.0\.0\.1|0\.0\.0\.0)' | sort -u > "$OUT/_home_ips.txt"
 echo "首页内网/公网 IP:端口 ->"; cat "$OUT/_home_ips.txt"; [ -s "$OUT/_home_ips.txt" ] && echo "  ^^^ 有内网面板候选"
 grep -oE 'src="[^"]+\.js[^"]*"' "$OUT/_home.html" | sed 's/src="//;s/"//' | sort -u > "$OUT/_home_js.txt"
@@ -58,13 +68,17 @@ while read -r sub; do
   [ -z "$sub" ] && continue
   ip=$(doh "$sub"); [ -z "$ip" ] && continue
   case "$ip" in 127.*|10.*|192.168.*|172.16.*|172.17.*|172.31.*) echo "  $sub 内网IP $ip (跳过探活)"; continue;; esac
-  # MCP 子进程兜底：某些 bash 环境(/usr/bin/curl 旧版)写文件失败/HTTPS 失败 → 管道重取 + http 回退（老站 https 死 http 活）
-  hdr=$(curl -sk4 -m 12 -A "$UA" -o "$OUT/_b.html" -w "%{http_code} %{size_download}" "https://$sub/" 2>/dev/null)
-  case "$hdr" in 000*|"") hdr=$(curl -sk4 -m 10 -A "$UA" -o "$OUT/_b.html" -w "%{http_code} %{size_download}" "http://$sub/" 2>/dev/null);; esac
-  curl -sk4 -m 12 -A "$UA" -D "$OUT/_h.txt" -o /dev/null "https://$sub/" 2>/dev/null
-  [ -s "$OUT/_h.txt" ] || curl -sk4 -m 10 -A "$UA" -D "$OUT/_h.txt" -o /dev/null "http://$sub/" 2>/dev/null
-  code=$(echo "$hdr" | tail -1 | awk '{print $1}')
-  sz=$(echo "$hdr" | tail -1 | awk '{print $2}')
+  # ③ shell 重定向验存（替代 curl -o/-D 的 MSYS 0 字节坑）；https 死回退 http
+  curl -sk4 -m 12 -A "$UA" "https://$sub/" > "$OUT/_b.html" 2>/dev/null
+  BZ=$(wc -c < "$OUT/_b.html" 2>/dev/null | tr -d ' ')
+  case "${BZ:-0}" in 0) # https 0 字节 → http 回退（老站 https 死 http 活）
+    curl -sk4 -m 10 -A "$UA" "http://$sub/" > "$OUT/_b.html" 2>/dev/null
+    BZ=$(wc -c < "$OUT/_b.html" 2>/dev/null | tr -d ' ');; esac
+  code=$(curl -sk4 -m 12 -A "$UA" -o /dev/null -w "%{http_code}" "https://$sub/" 2>/dev/null)
+  [ "$code" = "000" ] && code=$(curl -sk4 -m 10 -A "$UA" -o /dev/null -w "%{http_code}" "http://$sub/" 2>/dev/null)
+  curl -sk4 -m 12 -A "$UA" -sS -D "$OUT/_h.txt" -o /dev/null "https://$sub/" 2>/dev/null || true
+  [ -s "$OUT/_h.txt" ] || curl -sk4 -m 10 -A "$UA" -sS -D "$OUT/_h.txt" -o /dev/null "http://$sub/" 2>/dev/null || true
+  sz="${BZ:-0}"
   srv=$(grep -iE '^server:' "$OUT/_h.txt" | head -1 | sed 's/^[Ss]erver: *//' | tr -d '
 ')
   cks=$(grep -iE '^set-cookie:' "$OUT/_h.txt" | head -1 | sed 's/^[Ss]et-[Cc]ookie: *//' | tr -d '\r' | cut -c1-60)

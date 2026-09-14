@@ -100,3 +100,28 @@ setup_playwright() {
   fi
 }
 setup_playwright
+# ------------------------------------------------------------------
+# ⑥ 浏览器二进制兜底：agent-browser 的 chrome-for-testing 内置 install 直连 Google（国内断流）
+# 检测缺失 → 从 npmmirror 官方镜像拉 CFT zip → 平铺（zip 内套 chrome-win64/ 要提一层）
+# ------------------------------------------------------------------
+setup_browser() {
+  local CFT="${HOME}/.agent-browser/browsers/chrome-for-testing/153.0.8010.36/win64/chrome.exe"
+  if [ -f "$CFT" ]; then
+    echo "==> 浏览器二进制已在（$CFT），xssprobe/agent-browser 可用"; return 0
+  fi
+  echo "==> chrome-for-testing 缺失，拉官方镜像（npmmirror，国内可达）…"
+  local tmp; tmp="$(mktemp -d)"
+  # zip 内层是 chrome-win64/，要把内层平铺到 win64/（agent-browser 期望 .../win64/chrome.exe）
+  if curl -sk4 -m 300 -o "$tmp/cft.zip" "https://cdn.npmmirror.com/binaries/chrome-for-testing/153.0.8010.36/win64/chrome-win64.zip" 2>/dev/null \
+     && [ "$(wc -c < "$tmp/cft.zip" 2>/dev/null | tr -d ' ')" -gt 50000000 ]; then
+    mkdir -p "$(dirname "$CFT")"
+    unzip -q "$tmp/cft.zip" -d "$tmp/" 2>/dev/null
+    # 内层 chrome-win64/ 提一层到 win64/
+    if [ -d "$tmp/chrome-win64" ]; then cp -r "$tmp/chrome-win64/." "$(dirname "$CFT")/"; fi
+    [ -f "$CFT" ] && echo "  ✓ 浏览器二进制 -> $CFT" || echo "  ⚠ 平铺失败，手动解压 $tmp/cft.zip"
+    rm -rf "$tmp"
+  else
+    echo "  ⚠ 浏览器二进制拉取失败（断流）——xssprobe 腿暂不可用，不影响其他腿；稍后重跑本脚本补齐"
+  fi
+}
+setup_browser

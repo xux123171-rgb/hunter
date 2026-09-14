@@ -84,6 +84,20 @@ nuclei 非破坏扫：`bin/nuclei.exe -u <活资产URL> -t "bin/templates/http/m
 ## 判死速查（写 journal 后不再磕）
 未鉴权面全404/403+无弱口令入口+无.git/.bak可读→未鉴权线判死 · 拿不到2可用登录态→越权/IDOR线判死 · 自研WAF全拦+3种绕过均拦→WAF线判死 · 单www+强WAF+子域全404→全目标判死（兰大一院型）· 注册带"提交审核"→认证型越权线判死（万华型）。
 
+## MCP 腿损坏时的降级执行路径（工具坏了 SOP 不停摆）
+MCP server 卡死/重启失败/腿返回乱码（如 WSL 桩报错）时，全部腿都有项目内引擎或自研脚本兜底，**不阻塞判死流程**：
+| 腿 | 手动等价命令（在 hunter 根目录） |
+|---|---|
+| `hunter_recon` | `bash tools/hunter-cli.sh recon <domain>`（subs 腿已带 CertSpotter 兜底，crt.sh 被墙自动切） |
+| `hunter_probe` | `bash tools/hunter-cli.sh probe <url>` |
+| `hunter_scan`（三件套①） | `bash tools/hunter-cli.sh scan <url>`（nuclei 本地库，限速10） |
+| `hunter_fuzz`（三件套②） | `bash tools/hunter-cli.sh fuzz <url含FUZZ>`（ffuf，限速5） |
+| `hunter_crawl`（三件套③） | `bash tools/hunter-cli.sh crawl <url>`（katana depth2） |
+| `hunter_xss`（⑦ 存储XSS 三态） | 用 Hermes agent venv python：`"$LOCALAPPDATA/hermes/hermes-agent/venv/Scripts/python.exe" tools/xssprobe.py --url <page> --field "留言"`（MCP 腿坏/没注册也要主动调它，XSS 面别全程 curl 文本级低配判） |
+| 脑子 | 直接读 `sop/PLAYBOOK.md`、`references/*.md`（文件都在仓库里，MCP 只是按需取件的便捷层） |
+引擎二进制在 `bin/*.exe`（nuclei/ffuf/katana/httpx），`tools/install-toolchain.sh` 可一键重建；浏览器二进制缺失时同脚本会自动从 npmmirror 补 chrome-for-testing。
+> 铁律不变：降级≠豁免。三件套手动命令跑完才算"最低深度门槛"达成，别因为 MCP 挂了就用"指纹+1发"充数。
+
 ## 攻击面全覆盖矩阵（授权内可打的全部写死在这；一项不通接下一项；矩阵清空=打完）
 ### A. 可打面总清单（阶段1/3 多渠道扩资产，漏一面=漏一洞）
 1. **公网子域**：DoH 词表爆破 + crt.sh CT + **前端配置/JS 挖域**（`config/index.js`、webpack chunk 写死的 API 域是最准的子域来源——easthope 实战：200 前缀词表漏掉的 3 个后端子域全靠 wms 的 config/index.js 救回）+ Wayback 历史 URL + GitHub 组织公开仓库代码 + App/小程序解包配置 + ICP 主体反查姊妹域名

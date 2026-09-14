@@ -20,6 +20,16 @@ ROOT="${HUNTER_DIR:-$HERE}"
 UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0 Safari/537.36"
 
 have() { command -v "$1" >/dev/null 2>&1; }
+# dl <url> <out> [range] — 可靠下载：MSYS curl 的 -o 参数会写 0 字节坑，
+# 统一走 shell 重定向落盘并验字节数；range 传 '0-511' 只取前 512B（验存性，不拖全量）
+dl() {
+  local u="$1" o="$2" r="${3:-}" args sz
+  args=( -sk4 -m 20 -A "$UA" )
+  [ -n "$r" ] && args+=( -r "$r" )
+  curl "${args[@]}" "$u" > "$o" 2>/dev/null
+  sz=$(wc -c < "$o" 2>/dev/null | tr -d ' ')
+  echo "dl $u -> $o (${sz:-0}B${r:+ range:$r})"
+}
 # 引擎二进制优先用项目 bin/，其次系统 PATH
 eng() { # eng <name> -> 解析可执行路径
   local n="$1"
@@ -43,9 +53,19 @@ wp() { # wp <path> -> 原生引擎可用的 Windows 路径
 doh() { curl -sk4 -m 8 "https://dns.alidns.com/resolve?name=$1&type=A" \
   | grep -oE '"type":1,"data":"[0-9.]+"' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | sort -u | tr '\n' ' '; }
 
-cmd_subs() { # 阶段1 自研子域枚举：DoH批量200前缀 + crt.sh CT
+# ⑤ 产出目录解析：HUNTER_SCRATCH 已按目标命名（如 D:/scratch/lsrc，slug=lsrc）时不再叠 <slug>/<slug>
+scratchdir() { # scratchdir <slug> -> echo 该 slug 的实际产出目录
+  local slug="$1"
+  if [ -n "${HUNTER_SCRATCH:-}" ]; then
+    if [ "$(basename "$HUNTER_SCRATCH")" = "$slug" ]; then echo "$HUNTER_SCRATCH"; else echo "$HUNTER_SCRATCH/$slug"; fi
+  else
+    echo "$ROOT/scratch/$slug"
+  fi
+}
+
+cmd_subs() { # 阶段1 自研子域枚举：DoH批量200前缀 + crt.sh CT（被墙则 CertSpotter 兜底）
   local DOM="${1:?domain}"; local SLUG="${2:-${DOM//./_}}"
-  local out="$ROOT/scratch/$SLUG"; mkdir -p "$out"
+  local out; out=$(scratchdir "$SLUG"); mkdir -p "$out"
   echo "== hunter subs $DOM =="
   local PFX="www app api wap m h5 admin oa mail portal test dev old shop new cms erp crm hr srm wms ebidding e bidding zhaobiao openapi open api2 v1 v2 mobile applet mp pay sms jk jiankang yuyue guahao register login sso iam id oss bucket storage cdn img static assets file download gw gateway svc web page site news bbs blog wiki help support faq contact it info data bigdata ai iot edge cloud vpn ssl cert log monitor zabbix grafana jenkins gitlab git svn harbor registry nexus docker k8s etcd redis mysql oracle db sql mssql postgres ldap ad dc nfs ftp sftp s3 minio cos eip slb alb clb waf ddos antiddos botshield esa 120 114 400 800 95598 95518"
   : > "$out/_subs.txt"
@@ -54,11 +74,25 @@ cmd_subs() { # 阶段1 自研子域枚举：DoH批量200前缀 + crt.sh CT
     [ -n "$ip" ] && echo "$s  =>  $ip" >> "$out/_subs.txt"
   done
   echo "== DoH 前缀命中 =="; cat "$out/_subs.txt" 2>/dev/null
-  echo "== crt.sh CT 长尾 =="
+  echo "== CT 长尾（crt.sh，被墙则自动切 CertSpotter）=="
+  : > "$out/_subs_ct.txt"
+  # crt.sh 主源（国内常被墙）：失败/0 结果 → 静默落空，下面 CertSpotter 兜底
   curl -sk4 -m 40 "https://crt.sh/?d=$DOM&output=json" 2>/dev/null \
     | grep -oE '"name":"[^"]*"' | sed 's/"name":"//;s/"$//' | tr -d '*' | sort -u \
-    | grep -vE '^\*$' | tee -a "$out/_subs_ct.txt" 2>/dev/null
-  echo "→ 存 $out/_subs.txt (DoH) + _subs_ct.txt (crt.sh)"
+    | grep -vE '^\*$' >> "$out/_subs_ct.txt"
+  # ② CertSpotter 兜底（crt.sh 被墙/断流时子域不断供）：分页拉 issuances，取 dns_names
+  if [ ! -s "$out/_subs_ct.txt" ]; then
+    echo "   crt.sh 0 结果 → 切 CertSpotter …"
+    local n=1
+    for start in 0 200 400 600 800; do
+      curl -sk4 -m 30 "https://api.certspotter.com/v1/issuances?domain=$DOM&start=$start&expand=dns_names" 2>/dev/null \
+        | grep -oE '"[A-Za-z0-9*._-]+"' | tr -d '"' | tr -d '*' | sed 's/^\.//' | grep -F ".$DOM" | sort -u >> "$out/_subs_ct.txt"
+      sleep 1; n=$((n+1)); [ $n -gt 5 ] && break
+    done
+  fi
+  sort -u -o "$out/_subs_ct.txt" "$out/_subs_ct.txt"
+  cat "$out/_subs_ct.txt"
+  echo "→ 存 $out/_subs.txt (DoH) + _subs_ct.txt (crt.sh/CertSpotter)"
 }
 
 cmd_scope() { # 阶段0 占位
@@ -82,14 +116,13 @@ cmd_recon() { # 阶段1+2 一键
 cmd_probe() { # 阶段2 活体指纹（纯自研 curl）
   local URL="${1:?url}"
   echo "== hunter probe $URL =="
-  local body
-  # MSYS curl 的 -o 文件不可靠(写0字节)；body 用 -o - 走stdout，size 用 -w 拿
-  body=$(curl -sk4 -m 12 -A "$UA" -o - -w "\n@@CODE=%{http_code}@@SZ=%{size_download}@@\n" "$URL" 2>/dev/null)
-  local code sz
-  code=$(echo "$body" | grep -oE '@@CODE=[0-9]+' | head -1 | sed 's/@@CODE=//;s/@@*//'); code="${code:-000}"
-  sz=$(echo "$body" | grep -oE '@@SZ=[0-9]+' | head -1 | sed 's/@@SZ=//;s/@@*//'); sz="${sz:-0}"
-  # 去尾两行标记
-  body=$(echo "$body" | grep -vE '^@@CODE=' | grep -vE '^@@SZ=' | grep -vE '@@CODE=')
+  local body code sz
+  # ③ code 用 -o /dev/null -w 取（可靠），body 走 stdout 落盘验存（绕 MSYS -o 0 字节坑）
+  curl -sk4 -m 12 -A "$UA" "$URL" > /tmp/_probe_body.$$ 2>/dev/null || true
+  code=$(curl -sk4 -m 12 -A "$UA" -o /dev/null -w "%{http_code}" "$URL" 2>/dev/null); code="${code:-000}"
+  body=$(cat /tmp/_probe_body.$$ 2>/dev/null)
+  sz=$(wc -c < /tmp/_probe_body.$$ 2>/dev/null | tr -d ' '); sz="${sz:-0}"
+  rm -f /tmp/_probe_body.$$
   echo "status=$code bytes=$sz"
   echo "--- waf/captcha 指纹 ---"; echo "$body" | grep -oiE 'waf|触发.*防护|acw_tc|CT2-WAAP|slide|captcha|安全验证' | sort -u | tr '\n' ';'; echo
   echo "--- 内网IP:端口 泄露 ---"; echo "$body" | grep -oE '(?:[0-9]{1,3}\.){3}[0-9]{1,3}(:[0-9]{2,5})?' | grep -vE '^(127\.|0\.|255\.)' | sort -u
