@@ -231,6 +231,13 @@ def hunter_fuzz(url: str, wordlist: str = "", rate_limit: int = 5) -> str:
 
 
 @mcp.tool()
+def hunter_matrix(slug: str, domain: str = "") -> str:
+    """阶段4 开工必建：攻击面矩阵骨架（A1-A9 可打面 × 活资产，三终态制）。
+    矩阵不清空=无权宣布打完；判死前每资产须过最低三件套(scan+fuzz+crawl)或写可复核豁免。"""
+    return _run_sh(f"bash '{TOOLS.as_posix()}/hunter-cli.sh' matrix {json.dumps(slug)} {json.dumps(domain or slug)}", timeout=30)
+
+
+@mcp.tool()
 def hunter_xss(url: str, selector: str = "", label: str = "", submit_selector: str = "",
                canary: str = "HWXSS", post_back: str = "") -> str:
     """阶段4 存储XSS 三态判定（自研 xssprobe，Playwright 元素级 canary，惰性<img>非破坏）：

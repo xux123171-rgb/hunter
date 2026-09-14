@@ -7,6 +7,13 @@
 - 通用 WAF（Cloudflare/Akamai/某 CDN）→ 常有**源站**可绕过，值得试。
 - 铁律：**3 种不同手法都拦 → 该面判死**，不磕。
 
+## 0.5 401/403 绕过字典（测管理/接口面的固定动作，≤3 手法再谈判死）
+- **路径变体**：`/admin/` `//admin` `/admin;.js` `/admin/..;/`（Spring/网关归一化差异）`/ADMIN` `/adMin` `/%61%64min` `/admin.json` `/admin?.`
+- **头伪造**：`X-Original-URL: /admin` / `X-Rewrite-URL:`（老 IIS/Spring 坑）；`X-Forwarded-For: 127.0.0.1` / `X-Real-IP` / `Client-Ip`（内网来源伪装——只证 403→200 diff，不外挖数据）
+- **方法变体**：POST/HEAD/OPTIONS 代 GET、`X-HTTP-Method-Override: GET`、`_method=GET`
+- **编码变体**：URL 二次编码、Unicode 同形、`%00` 尾
+- 实锤标准：绕过后与同 URL 的 403 基线**字节级 diff**；WAF 拦截页 ≠ 业务 403——拿墙页当"绕过了"的证据是 FP。
+
 ## 1. 源站直连（CDN/WAF 绕过主力）
 通用 CDN 只挡 CDN 边缘，源站往往裸奔：
 1. 找源站 IP：`dig +short` 多时点抓 A 记录跳变 / `hunter-cli subs` 里的 IP 里挑非 CDN 段 / 历史 DNS（crt.sh 证书 IP）/ 移动端 App 包里的 IP。
