@@ -75,6 +75,28 @@ nuclei 非破坏扫：`bin/nuclei.exe -u <活资产URL> -t "bin/templates/http/m
 ## 判死速查（写 journal 后不再磕）
 未鉴权面全404/403+无弱口令入口+无.git/.bak可读→未鉴权线判死 · 拿不到2可用登录态→越权/IDOR线判死 · 自研WAF全拦+3种绕过均拦→WAF线判死 · 单www+强WAF+子域全404→全目标判死（兰大一院型）· 注册带"提交审核"→认证型越权线判死（万华型）。
 
+## 攻击面全覆盖矩阵（授权内可打的全部写死在这；一项不通接下一项；矩阵清空=打完）
+### A. 可打面总清单（阶段1/3 多渠道扩资产，漏一面=漏一洞）
+1. **公网子域**：DoH 词表爆破 + crt.sh CT + **前端配置/JS 挖域**（`config/index.js`、webpack chunk 写死的 API 域是最准的子域来源——easthope 实战：200 前缀词表漏掉的 3 个后端子域全靠 wms 的 config/index.js 救回）+ Wayback 历史 URL + GitHub 组织公开仓库代码 + App/小程序解包配置 + ICP 主体反查姊妹域名
+2. **公网 IP 资产**：每条活 A 记录都探可达（含非标端口几百字实验证）
+3. **CDN/WAF 源站**：dig 多时点跳变 + crt.sh 历史 IP + App 内置 IP → `--resolve` 直连绕边缘
+4. **框架自带管理面**：actuator / swagger·knife4j / druid / nacos / dubbo-admin / tomcat manager / heapdump / .env…（有墙时按 waf-bypass.md 三手法）
+5. **泄露文件**：.git/.svn/.env/.bak/.sql/备份包/web.config（ffuf 词表 fuzz）
+6. **认证流程面**：注册/登录/找回密码/验证码/SSO·OAuth 流/单点票据（用户名枚举、认证绕过、弱口令入口探测=授权内克制尝试，禁字典轰炸）
+7. **业务接口面**：未鉴权 API 直读（字节级 diff 证真实影响）+ 登录态后 IDOR/越权（双账号法，邮箱走 `tools/mailacct.py`）
+8. **输入回显面**：注入点（SQLi 延时/命令回显/SSRF→169.254）+ 上传点（canary 回读）+ 存储 XSS 回显位（xssprobe 三态）
+9. **第三方集成密钥**：前端公共 key 不算洞；**私有** AK/SK、硬编码凭证泄露=实锤可报
+### B. 红线（平台授权也不打）
+内网段（127./10./172.16-31./192.168. 不可路由不探不报拖）、横向移动/跳板、拖全库、DoS/并发轰炸、社工钓鱼、任何破坏性写入。授权边界只到公网资产。
+### C. 洞型矩阵状态机（强制，防"看指纹就收工"）
+阶段4 一开工就在 `scratch/<slug>/matrix.md` 建矩阵：**行=上面 A 的每个可打面 × 阶段4 洞型（严重→低），列=每个活资产**。每格状态只有三种终态：
+- `实锤` → 记 finding，该型停
+- `已试（记录请求数+响应特征）` → 接下一行
+- `判死（写证据编号进 deadlines.md）` → 接下一行
+**一项不通立刻接下一项，不许磕；矩阵所有格到终态之前，该目标无权宣布"打完"。**
+**最低深度门槛（判死前置，缺一不许写判死）**：每个被判死的活资产必须先跑完"最低三件套"——① `hunter_scan`（nuclei 本地库非破坏模板）② `hunter_fuzz`（ffuf 关键路径，限速5）③ `hunter_crawl`（katana depth2 + -jc JS 挖）。豁免唯一形式=证据制写明（例："全站 403+盾页，三件套只会撞墙，头证据见 deadlines#3"），且豁免理由必须可被用户拿请求数复核。
+> 复盘教训（easthope）：本轮只靠响应头指纹判死，三件套一件没跑——按新规则属于"没打完"，下次目标起强制执行。
+
 ---
 <!-- 同步源: Hermes 已安装 skill 为 skills/hunter/SKILL.md（本文件是其正文副本，去掉 frontmatter）。
      改 SOP/打法时两边都更新；MCP hunter_brain(what=playbook) 读的就是这份，保证 MCP 自包含可移植。 -->
