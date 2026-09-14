@@ -9,7 +9,9 @@ SLUG="${2:-${DOM//./_}}"
 SCOPE="${3:-}"
 # 仓库根：HUNTER_DIR 显式 > 脚本自身所在目录的上一级（clone 到哪就在哪，不写死机器路径）
 ROOT="${HUNTER_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
-SCR="$ROOT/scratch/$SLUG"; REP="$ROOT/reports/$SLUG"
+# ⑤ 产物目录统一走 tools/hunter-scratch.sh（与 hunter-cli / hunt-recon 同规则，防 <slug>/<slug> 叠层 + 三腿同目录）
+source "$ROOT/tools/hunter-scratch.sh"
+SCR="$(scratchdir "$SLUG")"; REP="$ROOT/reports/$SLUG"
 mkdir -p "$SCR" "$REP"
 
 VALIDATE=""
@@ -32,8 +34,8 @@ echo "[阶段0] scope.md 占位已建 → 人工补全后 Agent 才往下打"
 # ---- 阶段1 资产测绘 ----
 echo; echo "==== 阶段1 资产测绘 ===="
 bash "$ROOT/tools/hunt-recon.sh" "$DOM" "$SLUG" 2>&1 | sed 's/^/  /'
-# 合并 recon 产物到 scratch（recon 腿的产物根 = $HUNTER_SCRATCH，默认=仓库 scratch → 同源免拷）
-RECON_SRC="${HUNTER_SCRATCH:-$ROOT/scratch}/$SLUG"
+# 合并 recon 产物到 scratch（recon 腿与 hunt.sh 现走同一 scratchdir，同源免拷；仅当目录不同才补拷）
+RECON_SRC="$(scratchdir "$SLUG")"
 if [ "$(cd "$RECON_SRC" 2>/dev/null && pwd)" != "$(cd "$SCR" 2>/dev/null && pwd || echo x)" ]; then
   cp -f "$RECON_SRC/_assets.md"   "$SCR/assets.md"   2>/dev/null
   cp -f "$RECON_SRC/_probe.md"    "$SCR/probe.md"    2>/dev/null
