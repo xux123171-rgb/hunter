@@ -56,20 +56,61 @@ TOOLS = ROOT / "tools"
 def _win(p: Path) -> str:
     return str(p)
 
-# Python 子进程视角：bash/curl 由 git 自带，PATH 兜底常见安装位置
+# Python 子进程视角：bash/curl 由 git 自带，PATH 兜底常见安装位置。
+# 关键修正：shutil.which 可能命中 C:\Windows\System32\bash.exe（WSL 启动桩，
+# 机器没装 Linux 时只打印 "Linux is not installed" 的 UTF-16 乱码，脚本根本没跑）。
+# 因此先用 _is_real_bash 逐个验证候选，拒绝 WSL 桩，落到真 Git bash。
+def _is_real_bash(p: str) -> bool:
+    # WSL 桩：System32/bash.exe（90KB 左右）；真 Git bash：usr/bin/bash.EXE。
+    # 只要不在 System32，且能正常 fork/echo，就当真 bash。
+    if "system32" in p.lower():
+        return False
+    try:
+        r = subprocess.run([p, "-c", "echo ok"], capture_output=True, timeout=8,
+                           stdin=subprocess.DEVNULL, text=True)
+        return r.returncode == 0 and "ok" in r.stdout
+    except Exception:
+        return False
+
+
 def _which(name: str, *extra: str) -> str:
+    cands = []
     p = shutil.which(name)
     if p:
-        return p
-    for cand in extra:
-        if Path(cand).exists():
+        cands.append(p)
+    cands.extend(extra)
+    # 1) 先给能真跑的子进程候选挑（排除 WSL 桩）
+    for cand in cands:
+        if _is_real_bash(cand):
             return cand
-    raise SystemExit(f"找不到 {name}（装 Git for Windows 或设 HUNTER_HOME 环境路径）")
+    # 2) 都验不过就原样返回 PATH 命中的（旧行为兜底，别直接崩）
+    if p:
+        return p
+    raise SystemExit(f"找不到可用的 {name}（真 Git bash；确认装了 Git for Windows，或设 HUNTER_HOME）")
 
-BASH = _which("bash",
-              r"C:\Program Files\Git\usr\bin\bash.EXE",
-              r"C:\Program Files (x86)\Git\usr\bin\bash.EXE",
-              r"C:\Program Files\Git\bin\bash.EXE")
+
+def _discover_bash() -> str:
+    # 自动探测本机实际 bash 位置（git-bash 可能装在用户目录，如 C:\Users\<u>\Git\...），
+    # 不再只认 Program Files 默认位。
+    home = os.environ.get("USERPROFILE", "")
+    user_git = [f"{home}\\Git\\usr\\bin\\bash.EXE", f"{home}\\Git\\bin\\bash.EXE"] if home else []
+    return _which("bash",
+                  r"C:\Users\ThinkPad\Git\usr\bin\bash.EXE",
+                  *user_git,
+                  r"C:\Program Files\Git\usr\bin\bash.EXE",
+                  r"C:\Program Files (x86)\Git\usr\bin\bash.EXE",
+                  r"C:\Program Files\Git\bin\bash.EXE")
+
+
+BASH = _discover_bash()
+# 启动时自检：真 bash 要能 echo；WSL 桩会报 "Linux is not installed"。
+try:
+    _chk = subprocess.run([BASH, "-c", "echo __hunt_ok__"], capture_output=True,
+                          timeout=8, stdin=subprocess.DEVNULL, text=True)
+    if "__hunt_ok__" not in _chk.stdout:
+        print(f"[hunter-mcp] WARNING bash 自检未通过: {BASH} -> {_chk.stdout[:80]!r}", file=__import__('sys').stderr)
+except Exception as _e:
+    print(f"[hunter-mcp] WARNING bash 自检异常: {_e}", file=__import__('sys').stderr)
 
 
 def _venv_py() -> str:
