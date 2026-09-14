@@ -43,7 +43,7 @@ nuclei 非破坏扫：`bin/nuclei.exe -u <活资产URL> -t "bin/templates/http/m
 ### 阶段4 洞型测试（Agent 判断，严格 严重→低，出实锤即停该型）
 **影响按最远可达点定级**（primitive→impact 链，入口只决定能不能进，不决定值多少）。对每端点先发散假设，试出 primitive（可控原语），再推到最坏 impact。
 **严重**：RCE/命令注入（延时回显）· SQL 拖库（真读表/列）· 未鉴权数据接口（字节级 diff 证全量）· SSRF→169.254.169.254 · 反序列化（aced0005/rO0AB 首字节）· 文件上传（canary 可回读/执行）
-**高**：IDOR/BOLA（需≥2可用账号，邮箱走 `tools/mailacct.py`）· 垂直越权 · 认证绕过（alg:none/空token）· 业务逻辑 · race/并发（WAF 盲区，最高性价比）
+**高**：IDOR/BOLA（需≥2可用账号，邮箱走 `tools/mailacct.py`）· 垂直越权 · 认证绕过（alg:none/空token）· 业务逻辑（**资金/数量/积分类参数必重放负数/零/超界各1发对照正数基线，看流水方向与余额终态——testfire 实锤：-6.66 反向入金+余额下溢10^99**）· race/并发（WAF 盲区，最高性价比）
 **中**：存储 XSS（`tools/xssprobe.py` 元素级 canary 判 A/B/C）· 用户名枚举 · 信息泄露链（.git/.bak/.map/actuator）
 **低**（凑报告厚度不单报）：开放重定向 / 缺安全头 / 版本泄露 / 默认 404 框架名 / cookie 缺 Secure/HttpOnly
 **强防护打法**（WAF/CDN 有墙时）：按 `references/waf-bypass.md` 先试「CDN 源站直连 + 业务逻辑面（WAF 盲区）」，别硬刚 WAF；race/业务逻辑见 `references/race-business-logic.md`（并发 2~5 个克制、不轰炸）
