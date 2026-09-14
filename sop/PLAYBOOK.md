@@ -47,6 +47,8 @@ nuclei 非破坏扫：`bin/nuclei.exe -u <活资产URL> -t "bin/templates/http/m
 **中**：存储 XSS（`tools/xssprobe.py` 元素级 canary 判 A/B/C）· 用户名枚举 · 信息泄露链（.git/.bak/.map/actuator）
 **低**（凑报告厚度不单报）：开放重定向 / 缺安全头 / 版本泄露 / 默认 404 框架名 / cookie 缺 Secure/HttpOnly
 **强防护打法**（WAF/CDN 有墙时）：按 `references/waf-bypass.md` 先试「CDN 源站直连 + 业务逻辑面（WAF 盲区）」，别硬刚 WAF；race/业务逻辑见 `references/race-business-logic.md`（并发 2~5 个克制、不轰炸）
+**race 必须 barrier 齐射（huntlab 实战教训：串行发射=假阴性，同代码齐射超发 6/2 实锤）**：并发 2~5 发、同一毫秒起跑（线程 Barrier / curl 并行 `&` 等待齐发），间隔发射等于没测；判定看最终态不变量（库存负数/券超发/余额双花），发放数>库存即实锤。
+**越权双账号标准流（mailacct 腿实战闭环）**：A/B 两号各注册→（目标站发验证邮件）→`mailacct.py otp` 提码激活→A 的 token 读 B 的对象（profile/order 按 uid），**必须配 A读A 对照**——两者都 200 才算越权实锤而不是设计公开。临时邮箱可完成此链（mail.tm 收件实测通），目标站 ToS 明禁 temp-mail（如 PortSwigger Academy）才需真邮箱。
 每型三要素：探测法→实锤标准→判死标准。出实锤记 `reports/<slug>/finding_<n>.md`，判死记 `scratch/<slug>/deadlines.md`。
 
 ### 阶段5 实锤复核（先 FP-elimination 再 7 问，任一不过降级或砍）
