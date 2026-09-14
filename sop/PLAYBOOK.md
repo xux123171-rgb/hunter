@@ -79,7 +79,7 @@ nuclei 非破坏扫：`bin/nuclei.exe -u <活资产URL> -t "bin/templates/http/m
 浏览器=Playwright headless(UA+ignore_https_errors)；接口响应=PIL 终端风格 PNG(黑底+等宽逐格上色，Consolas+雅黑双字体防豆腐块)；截完 vision_analyze 验目标在画面里。
 
 ## 目标清理（每打完必须清）
-出洞后：报告/PoC/截图已存 `D:\research\journal\<目标>\` 才可删 scratch/Temp；没出洞全删。文件名带目标前缀便 glob。
+出洞后：报告/PoC/截图已存 `journal/<目标>/`（或你的归档区，如 D:\research\journal\<目标>\）才可删 scratch/Temp；没出洞全删。文件名带目标前缀便 glob。
 
 ## 判死速查（写 journal 后不再磕）
 未鉴权面全404/403+无弱口令入口+无.git/.bak可读→未鉴权线判死 · 拿不到2可用登录态→越权/IDOR线判死 · 自研WAF全拦+3种绕过均拦→WAF线判死 · 单www+强WAF+子域全404→全目标判死（兰大一院型）· 注册带"提交审核"→认证型越权线判死（万华型）。

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════
 #  hunter 测试总入口 — 一条命令红绿（30 秒离线，零真实请求）
-#  ① MCP 离线判定   full_test.py --check      （8 工具 + 脑子字数 + 前置件路径）
+#  ① MCP 离线判定   full_test.py --check      （11 工具 + 脑子字数 + 前置件路径）
 #  ② 引擎腿离线自测  engines_offline_test.py   （4 引擎 --version + 读本地库 + flag）
 #  ③ 安装幂等性     缺啥补啥静态检测
 #  全过 exit 0 / 任一挂 exit 1。LIVE 判定另跑: <venv> mcp/full_test.py --check-live

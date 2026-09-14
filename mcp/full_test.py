@@ -1,16 +1,16 @@
-"""hunter MCP 全 8 工具测试 — 手动冒烟 + --check 判定模式（机器红绿）。
+"""hunter MCP 全 11 工具测试 — 手动冒烟 + --check 判定模式（机器红绿）。
 
 用法:
-  python full_test.py                 # 冒烟：全 8 工具打印输出（不判定）
+  python full_test.py                 # 冒烟：全 11 工具打印输出（不判定）
   python full_test.py brain probe     # 只跑指定几个
   python full_test.py --check         # 判定：离线可验的断言，全过 exit 0 / 任一挂 exit 1
-  python full_test.py --check-live    # 判定 + 打真实目标 easthope.cn（需网络+引擎）
+  python full_test.py --check-live    # 判定 + 打公开靶 demo.testfire.net（需网络+引擎）
 
 判定断言分两级：
-  OFFLINE（--check，不发真实请求）: 8 工具齐全 / brain 5 key 字数下限 / 词表&模板路径存在 /
+  OFFLINE（--check，不发真实请求）: 11 工具齐全 / brain 6 key 字数下限 / 词表&模板路径存在 /
                                     引擎参数 dry-run 拼对 / probe 打 127.0.0.1 本地端口(不依赖外网)
-  LIVE（--check-live，需网络）: probe/crawl/fuzz/scan 打真实目标，验输出非空+含关键字段
-合规: 目标 easthope.cn（user 指定授权），限速非破坏。"""
+  LIVE（--check-live，需网络）: probe/crawl/fuzz/scan 打公开靶，验输出非空+含关键字段
+合规: 目标 demo.testfire.net（IBM 永久公开靶，零注册授权打），限速非破坏。"""
 import asyncio, sys, os, re
 from pathlib import Path
 from mcp import ClientSession, StdioServerParameters
@@ -23,14 +23,14 @@ ROOT = Path(ROOT)
 PY = str(ROOT / "mcp" / ".venv" / "Scripts" / "python.exe")
 PY = PY if os.path.exists(PY) else str(ROOT / "mcp" / ".venv" / "bin" / "python")
 SRV = str(ROOT / "mcp" / "server.py")
-DOM = "easthope.cn"
-WWW = "https://www.easthope.cn/"
-DZ = "https://dzxs.easthope.cn/"
+DOM = "demo.testfire.net"
+WWW = "https://demo.testfire.net/"
+DZ = "https://demo.testfire.net/"
 
 def params():
     return StdioServerParameters(command=PY, args=[SRV])
 
-# 8 工具 → 参数（引擎腿用 dry-run：打本地 127.0.0.1 不发射真实请求，只验参数拼对）
+# 11 工具 → 参数（引擎腿用 dry-run：打本地 127.0.0.1 不发射真实请求，只验参数拼对）
 TOOL_ARGS = {
     "brain":    ("hunter_brain", {"what": "sop"}),
     "accounts": ("hunter_accounts", {"cmd": "domains"}),
@@ -40,10 +40,14 @@ TOOL_ARGS = {
     "xss":      ("hunter_xss", {"url": WWW}),
     "recon":    ("hunter_recon", {"domain": DOM}),
     "scan":     ("hunter_scan", {"url": DZ, "rate_limit": 5}),
+    "matrix":   ("hunter_matrix", {"slug": "ft_smoke", "domain": DOM}),
+    "monitor":  ("hunter_monitor", {"domain": DOM, "slug": "ft_smoke"}),
+    "apk":      ("hunter_apk", {"apk": str(ROOT / "mcp")}),  # 扫本地目录验不崩（无 apk 特征=0 命中属正常）
 }
 
-# 离线断言基线（字数下限是"脑子没截断/没读空"的下限；实测 4883/4838/3037/1242/1079）
-BRAIN_MIN = {"playbook": 4000, "sop": 4000, "gates": 2500, "waf": 900, "race": 700}
+
+# 离线断言基线（字数下限是"脑子没截断/没读空"的下限；实测 playbook 5000+/sop 4838/gates 3037/waf 1242/ladder 1400+/race 1079）
+BRAIN_MIN = {"playbook": 4000, "sop": 4000, "gates": 2500, "waf": 900, "ladder": 1000, "race": 700}
 
 def _txt(res):
     return res.content[0].text if res.content else ""
@@ -80,11 +84,11 @@ async def check_offline():
     async with stdio_client(sp) as (r, w):
         async with ClientSession(r, w) as s:
             await s.initialize()
-            # 1) 8 工具齐全
+            # 1) 11 工具齐全
             tools = [t.name for t in (await s.list_tools()).tools]
-            expected = ["hunter_recon","hunter_probe","hunter_crawl","hunter_scan","hunter_fuzz","hunter_xss","hunter_accounts","hunter_brain"]
-            checks.append((f"8 工具齐全（{len(tools)} 个）", all(t in tools for t in expected)))
-            # 2) brain 5 key 字数下限（脑子在，且没读空/没截断）
+            expected = ["hunter_recon","hunter_probe","hunter_crawl","hunter_scan","hunter_fuzz","hunter_xss","hunter_accounts","hunter_brain","hunter_matrix","hunter_monitor","hunter_apk"]
+            checks.append((f"11 工具齐全（{len(tools)} 个）", all(t in tools for t in expected) and len(tools)==len(expected)))
+            # 2) brain 6 key 字数下限（脑子在，且没读空/没截断）
             for k, minlen in BRAIN_MIN.items():
                 c = _txt(await s.call_tool("hunter_brain", {"what": k}))
                 checks.append((f"brain[{k}] ≥{minlen}字（实 {len(c)}）", len(c) >= minlen))
@@ -99,7 +103,7 @@ async def check_offline():
     return passed == total
 
 async def check_live():
-    print("\n═══ LIVE 判定（打真实目标 easthope.cn，需网络+引擎）═══")
+    print("\n═══ LIVE 判定（打公开靶 demo.testfire.net，需网络+引擎）═══")
     out = await run_tools(["probe", "crawl", "fuzz", "scan", "recon", "xss"])
     checks = []
     for name, keys in [("probe", ["status"]), ("crawl", ["端点"]), ("fuzz", []),

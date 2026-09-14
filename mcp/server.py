@@ -2,9 +2,9 @@
 """hunter-mcp — 我们自己的挖洞 MCP 服务（脑子+腿全指向本项目，无第三方 MCP 依赖）
 
 定位：
-- 脑子 = sop/SOP.md + references/（hunter_brain 工具按需取原文）
-- 腿   = tools/（recon/probe 走自研 hunter-cli.sh；crawl/scan/fuzz 直调 bin/ 引擎带参数控制力；
-          xss/accounts 走自研 python 工具）
+- 脑子 = sop/PLAYBOOK.md（主）/ sop/SOP.md（简版）+ references/（hunter_brain 工具按需取原文，含 ladder 判死梯子）
+- 腿   = tools/（recon/probe/matrix/monitor 走自研 hunter-cli.sh；crawl/scan/fuzz 直调 bin/ 引擎带参数控制力；
+          xss/accounts/apk 走自研 python 工具）
 - 合规 = 限速（nuclei -rl 5 / ffuf -rate 5）、非破坏、payload 克制（SOP 约束，工具只做单点探测）
 
 运行（stdio，由 MCP 宿主拉起）：
@@ -19,15 +19,18 @@
   HUNTER_PYTHON 跑子进程的解释器（默认找 Hermes agent venv / PATH python）
   bash          自动探测 Git for Windows 常见安装位置
 
-工具（8 个，全是我们自己的）：
+工具（11 个，全是我们自己的）：
   hunter_recon(domain)         阶段1+2 子域+官网扫+活体指纹（hunter-cli recon）
   hunter_probe(url)           阶段2 单点活体指纹（hunter-cli probe，纯 curl）
   hunter_crawl(url, depth)    阶段3 面绘制（katana 直调，depth 可配）
-  hunter_scan(url, tags, severity, rate_limit)  阶段4 nuclei 本地库非破坏扫
-  hunter_fuzz(url, wordlist, rate_limit)        阶段4 ffuf 限速 fuzz（默认词表隐藏路径/泄露类）
-  hunter_xss(url, ...)       阶段4 存储XSS 三态判定（xssprobe，惰性<img>canary）
+  hunter_scan(url, tags, severity, rate_limit)  阶段4 nuclei 本地库非破坏扫（0命中强制自检防假阴性）
+  hunter_fuzz(url, wordlist, rate_limit)        阶段4 ffuf 限速 fuzz（-s -or 防旧文件假命中）
+  hunter_matrix(slug, domain) 阶段4 开工必建：攻击面矩阵骨架（A1-A9×资产，三终态制）
+  hunter_monitor(domain)      持续侦察：子域快照 diff，报新增/鬼资产
+  hunter_xss(url, ...)       阶段4 存储XSS 三态判定（xssprobe，惰性<img>canary，--then 多步流）
   hunter_accounts(cmd, tag)   越权双邮箱账号（mailacct create/inbox/otp）
-  hunter_brain(what)          取脑子：sop/gates/waf/race 原文
+  hunter_apk(apk)             A'移动端线：apk 扫硬编码密钥+API基址（纯 stdlib 零 Java）
+  hunter_brain(what)          取脑子：playbook/sop/gates/waf/ladder/race 原文
 """
 import json
 import os
@@ -256,10 +259,11 @@ def hunter_monitor(domain: str, slug: str = "") -> str:
 
 @mcp.tool()
 def hunter_xss(url: str, selector: str = "", label: str = "", submit_selector: str = "",
-               canary: str = "HWXSS", post_back: str = "") -> str:
+               canary: str = "HWXSS", post_back: str = "", then_steps: str = "") -> str:
     """阶段4 存储XSS 三态判定（自研 xssprobe，Playwright 元素级 canary，惰性<img>非破坏）：
     A=canary 渲染成活 DOM 节点(实锤，报) / B=被转义成纯文本(过滤生效，不报) / C=无回显(换入口)。
-    selector=输入框CSS；label=按label文本；submit_selector=提交按钮；post_back=回显页。"""
+    selector=输入框CSS；label=按label文本；submit_selector=提交按钮；post_back=回显页；
+    then_steps=提交后多步触发（分号分隔，如 "click=a.card;goto=#detail"——client-side 流必用）。"""
     cmd = [f"{TOOLS}\\xssprobe.py", "--url", url, "--canary", canary]
     if selector:
         cmd += ["--sel", selector]
@@ -269,6 +273,8 @@ def hunter_xss(url: str, selector: str = "", label: str = "", submit_selector: s
         cmd += ["--submit-sel", submit_selector]
     if post_back:
         cmd += ["--post-back", post_back]
+    for step in [s for s in (then_steps or "").split(";") if s.strip()]:
+        cmd += ["--then", step.strip()]
     return _run_py(cmd, timeout=180)[:6000]
 
 
@@ -280,6 +286,14 @@ def hunter_accounts(cmd: str, tag: str = "hunter") -> str:
     if cmd not in ("create", "inbox", "otp", "domains"):
         return "cmd 只支持 create/inbox/otp/domains"
     return _run_py([f"{TOOLS}\\mailacct.py", cmd, "--tag", tag], timeout=180)[:6000]
+
+
+@mcp.tool()
+def hunter_apk(apk: str) -> str:
+    """A'移动端线 ①②步（纯 stdlib 零 Java）：apk(zip)或解包目录 → 扫硬编码密钥
+    (AK/SK/jwt/password/private key) + API 基址/内网域名(喂 A1 扩面 & L5 源站)。
+    dex 方法级反编需 jadx(Java)=手工环节，本腿只吃文件内容特征。"""
+    return _run_py([f"{TOOLS}\\apksecret.py", "scan", apk], timeout=120)[:8000]
 
 
 @mcp.tool()

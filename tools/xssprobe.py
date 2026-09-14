@@ -34,6 +34,9 @@ def main():
     p.add_argument("--submit-sel", default="", help="提交按钮选择器（默认按 Enter）")
     p.add_argument("--canary", default="HWXSS", help="canary 前缀（默认 HWXSS，自动拼时间戳）")
     p.add_argument("--post-back", default="", help="提交后要访问的回显页（默认同 url）")
+    p.add_argument("--then", action="append", default=[], metavar="CSS",
+                   help="提交后按序执行的触发步（多步 client-side 流：如先点结果卡片→hash 渲染页）。"
+                        "格式 'click=SEL' 或 'goto=URL'，可重复传多步（xss-game L2~L6 型）")
     a = p.parse_args()
 
     from playwright.sync_api import sync_playwright  # 延迟导入，纯读模式也走这里
@@ -72,6 +75,16 @@ def main():
             else:
                 pg.press("body", "Enter")
             pg.wait_for_load_state("domcontentloaded", timeout=15000)
+            # --then 多步触发（client-side 流：点结果卡片/hash 路由等，逐步执行）
+            for step in a.then:
+                try:
+                    if step.startswith("click="):
+                        pg.click(step[6:], timeout=8000)
+                        pg.wait_for_timeout(800)  # 给前端渲染留 0.8s
+                    elif step.startswith("goto="):
+                        pg.goto(step[5:], timeout=30000, wait_until="domcontentloaded")
+                except Exception as e:
+                    print(f"[warn] then 步骤失败 {step}: {str(e)[:80]}", file=sys.stderr)
             target = a.post_back or a.url
             if target != a.url:
                 pg.goto(target, timeout=30000, wait_until="domcontentloaded")

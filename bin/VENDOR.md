@@ -3,7 +3,7 @@
 > 我们的项目 = 脑子（sop/、references/、templates/、tools/、.git）+ 编排。
 > bin/ 里四个二进制是**第三方开源底层引擎**，我们是使用者（藏 bin/ 不冒头，被自有 tools/ 调用），来源与版本如下。
 > 二进制本身不入库（.gitignore 挡掉），靠 `tools/install-toolchain.sh` 重建。
-> 第三方 MCP（cybermes）已移除，不再 vendor。
+> 无第三方 MCP 依赖，不再 vendor。
 
 | 二进制 | 上游项目 | 版本 | 构建方式 |
 |---|---|---|---|

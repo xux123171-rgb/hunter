@@ -1,6 +1,6 @@
 # SETUP — 环境需求总清单（clone 即用）
 
-> 目标：任何一台 Windows 机器，照这份装齐 → 仓库里**全部 8 条腿**都能跑。
+> 目标：任何一台 Windows 机器，照这份装齐 → 仓库里**全部 11 条腿**都能跑。
 > 已实测基线环境（2026-09，本项目开发/验收机）：Windows 10 + Git Bash + Go 1.27 + uv + Hermes Agent。
 
 ## 〇、发行版全量包（最快路线，无 Go 无代理）
@@ -44,7 +44,7 @@ bash tools/install-toolchain.sh
 
 ## 三、MCP 注册（Hermes，可选但推荐）
 
-纯 CLI（`bash tools/hunt.sh <domain>`）不装 MCP 也能全流程。要 8 工具 MCP 形态：
+纯 CLI（`bash tools/hunt.sh <domain>`）不装 MCP 也能全流程。要 11 工具 MCP 形态：
 
 ```
 # Hermes config.yaml
@@ -62,15 +62,16 @@ hermes mcp add hunter \
   --args "<repo>/mcp/server.py" <<< "Y"
 ```
 
-启动新会话即加载 8 工具：`hunter_recon / probe / crawl / scan / fuzz / xss / accounts / brain`。
+启动新会话即加载 11 工具：`hunter_recon / probe / crawl / scan / fuzz / matrix / monitor / xss / accounts / apk / brain`。
 
 ## 四、环境变量（全有默认值，不设也能跑；要跨机/跨用户再设）
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `HUNTER_HOME` | 不设也能跑（`server.py` 从 `__file__` 自动定位到 clone 的仓库根；仅多副本/分离安装时需显式设） | 指向仓库根 |
-| `HUNTER_PYTHON` | 自动发现（Hermes agent venv → PATH python） | 跑 xssprobe/mailacct 子进程的解释器，需含 playwright |
+| `HUNTER_PYTHON` | 自动发现（Hermes agent venv → PATH python） | 跑 xssprobe/mailacct/apksecret 子进程的解释器，需含 playwright |
 | `HUNTER_SLUG` | 由 URL 自动推 | 指定 scratch 工作目录名 |
+| `HUNTER_SCRATCH` | 仓库内 `scratch/`（clone 即用） | 侦察/fuzz/crawl 产物根目录；本机想指回 `D:/research/scratch` 在此设 |
 
 > 快速改 `HUNTER_HOME`：`bash -c 'export HUNTER_HOME=<你的clone路径>; ...'`
 > 或 Windows 系统环境变量加一条。
@@ -78,7 +79,7 @@ hermes mcp add hunter \
 ## 五、验证全通（1 条命令，防回归）
 
 ```bash
-cd mcp && .venv/Scripts/python.exe full_test.py          # 8 工具全打一遍（需一个已探过活的域名）
+cd mcp && .venv/Scripts/python.exe full_test.py          # 11 工具全打一遍（需一个已探过活的域名）
 ```
 
 分 3 批避免前台超时（nuclei 慢）：
@@ -89,7 +90,7 @@ cd mcp && .venv/Scripts/python.exe full_test.py          # 8 工具全打一遍�
 .venv/Scripts/python.exe full_test.py scan
 ```
 
-预期：8/8 返回内容非空、无 `timed out` / `Connection closed`。
+预期：11/11 返回内容非空、无 `timed out` / `Connection closed`。
 
 ## 六、常见坑（本项目实测踩过，写死给你）
 

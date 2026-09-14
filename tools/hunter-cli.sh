@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# hunter — 我们自己的统一入口（"脚"）。编排 6 阶段，底层按需调 bin/ 里的引擎二进制。
+# hunter — 我们自己的统一入口（"脚"）。编排 阶段1→6，底层按需调 bin/ 里的引擎二进制。
 # 第三方引擎(nuclei/ffuf/katana/httpx)只是被调用的依赖，不对外冒头。
 # 用法: hunter <子命令> [参数]   (在项目根或任意处：export PATH=.../hunter/bin:$PATH 后直接 hunter ...)
 #   子命令:
@@ -8,6 +8,8 @@
 #     hunter recon  <domain> [slug]     阶段1+2 一键侦察(资产表+官网扫+活体指纹)
 #     hunter probe  <url>               阶段2 活体指纹(纯自研 curl)
 #     hunter crawl  <url>               阶段3 面绘制(调 katana)
+#     hunter matrix <slug> [domain]     阶段4 开工: 攻击面矩阵骨架(A1-A9×资产,三终态制)
+#     hunter monitor <domain> [slug]    持续侦察: 子域快照 diff(新增/鬼资产)
 #     hunter scan   <url-or-listfile>   阶段2/4 模板扫(调 nuclei, 非破坏, 限速)
 #     hunter fuzz   <url> [wordlist]    阶段4 目录/端点 fuzz(调 ffuf, 限速)
 #     hunter report <slug>              阶段6 聚合报告骨架

@@ -1,12 +1,12 @@
 # 执行手册（SOP 的"腿"：工具、截图、清理、补天配方）
 
-> 脑子 = sop/SOP.md（打哪类洞、什么顺序、实锤/判死标准）。
+> 脑子 = sop/PLAYBOOK.md（简版 SOP.md；打哪类洞、什么顺序、实锤/判死标准）。
 > 本文件 = 怎么落地执行：工具链（全自有 bin/ + 自研 tools/）、截图配方、补天字段配方、目标清理。
-> 第三方 MCP（cybermes）已移除，全流程走项目自研 `tools/hunter-cli.sh` 编排 + `bin/` 底层引擎。
+> 无任何第三方 MCP 依赖，全流程走项目自研 `tools/hunter-cli.sh` 编排 + `bin/` 底层引擎。
 
 ## 一、工具链（本机 Windows + git-bash）
 - 二进制在项目 `bin/`（自包含，第三方底层引擎）：`ffuf.exe`(v2.1)、`katana.exe`(v1.7)、`nuclei.exe`(v3.11.1)、`httpx.exe`(PD v1.12.0)
-- 自研工具在 `tools/`（脑子腿）：`hunter-cli.sh`（subs/probe 纯自研）、`mailacct.py`（合规双邮箱）、`xssprobe.py`（Playwright 三态判定）
+- 自研工具在 `tools/`（脑子腿）：`hunter-cli.sh`（subs/recon/probe/matrix/monitor 纯自研）、`mailacct.py`（合规双邮箱）、`xssprobe.py`（Playwright 三态判定）、`apksecret.py`（apk 密钥扫描，零 Java）
 - 用法先铺 PATH：`export PATH="$(cd "$(dirname "$0")/.." && pwd)/bin:$PATH"`；重装见 `tools/install-toolchain.sh`，清单见 `bin/MANIFEST.md`
 - subfinder 二进制装不了（GitHub release 国内断流），**走 `hunter-cli subs` 的阿里 DoH + crt.sh 自研引擎补长尾**（实测可跑出子域）
 - 本机 IPv6 不稳 → 所有 curl 强制 `-4`（阿里 DoH：`https://dns.alidns.com/resolve?name=…`）
@@ -17,16 +17,20 @@
 
 | SOP 阶段 | 自有腿 | 用法 |
 |---|---|---|
-| 1 资产测绘 | `hunter-cli subs` | 阿里 DoH 批量 200 前缀 + crt.sh，补长尾子域 |
-| 2 活体普查 | `hunter-cli probe` | 每个活子域 1 次，纯 curl 拿 server/cookie/404/WAF 指纹 |
+| 1 资产测绘 | `hunter-cli subs` | 阿里 DoH 批量 200 前缀（并行 xargs-P20）+ crt.sh，补长尾子域 |
+| 1+2 一键 | `hunter-cli recon` | subs + 官网扫 + 活体普查一条龙（产物落 HUNTER_SCRATCH/<slug>/） |
+| 2 活体普查 | `hunter-cli probe` | 每个活子域 1 次，纯 curl 拿 server/cookie/404/WAF 指纹（https死回退http） |
 | 2 活体普查 | `hunter-cli scan` | 调 `bin/nuclei.exe` 非破坏模板扫，`bin/templates/` 本地库，限速 10 |
 | 3 面绘制 | `hunter-cli crawl` | 调 `bin/katana.exe` 爬端点+JS，`-ct` 控量 |
 | 4 洞型-fuzz | `hunter-cli fuzz` | 调 `bin/ffuf.exe` 隐藏路径/参数，限速、带 401/403 抓越权面 |
-| 4 存储 XSS | `tools/xssprobe.py` | Playwright 元素级 canary 判 A/B/C |
+| 4 开工 | `hunter-cli matrix` | 攻击面矩阵骨架（A1-A9×资产，三终态制：实锤/已试/判死） |
+| 持续侦察 | `hunter-cli monitor` | 子域快照 diff，报新增（忘下线旧站）/鬼资产 |
+| 4 存储 XSS | `tools/xssprobe.py` | Playwright 元素级 canary 判 A/B/C，`--then` 走多步 client-side 流 |
 | 越权双账号 | `tools/mailacct.py` | 邮箱双号（收件侧），手机号用户侧 |
+| A' 移动端 | `tools/apksecret.py` | apk/解包目录 扫硬编码密钥+API基址（纯 stdlib 零 Java） |
 | 6 报告 | 人工整理 | 骨架见 `templates/finding-poc.md`，补天/盒子字段见第四节 |
 
-注意：第三方引擎（nuclei/ffuf/katana/httpx）只作为 `bin/` 底层依赖被调用，不对外冒头；第三方 MCP（cybermes）已移除，不再有"技能库/知识库"依赖——脑子永远是 `sop/SOP.md`。
+注意：第三方引擎（nuclei/ffuf/katana/httpx）只作为 `bin/` 底层依赖被调用，不对外冒头；第三方 MCP 无依赖，全流程走项目自研 `tools/` + 引擎——脑子永远是 `sop/PLAYBOOK.md`（简版 `sop/SOP.md`，`hunter_brain` 按需取）。
 
 ## 三、截图配方（用户负责截图，我负责文字/PoC + 给截图清单）
 - **归属证明三张必做**：`1_归属_首页`(官网 logo+厂商名) `2_归属_备案号`(页脚 ICP 原文) `3_归属_证据位置`
