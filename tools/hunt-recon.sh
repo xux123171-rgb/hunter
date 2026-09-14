@@ -39,9 +39,9 @@ _BALL=$( { grep -oiE '<title>[^<]*' "$OUT/_brand.html" 2>/dev/null | sed 's/<tit
 _PFX="$_PFX $_BALL"
 echo "==> [$DOM] 阶段1: 子域枚举 (DoH批量 $(echo $_PFX | wc -w) 前缀[共享词表+品牌词]; crt.sh 走 hunter-cli subs 自研补长尾)"
 # 并行 20 路（合规:DoH 查询不碰目标）。前缀列表经文件传入，xargs -P20
-# 前缀列表并行探活：管道喂 xargs（域可见保留在源码里），MSYS_NO_PATHCONV=1 保证 /c/... 路径不被 Git-bash 转换成 Windows 路径
-CT=$(MSYS_NO_PATHCONV=1 printf '%s\n' $_PFX | grep -v '^$' | xargs -P 20 -I{} sh -c 's="${1}.$2"; ip=$(curl -sk4 -m 8 "https://dns.alidns.com/resolve?name=${s}&type=A" | grep -oE "\"type\":1,\"data\":\"[0-9.]+\"" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | sort -u | tr "\n" " "); [ -n "$ip" ] && echo "${s} => ${ip}"' _ "$DOM" 2>/dev/null)
-CT=$(echo "$CT" | grep '=>' | cut -d' ' -f1 | sort -u)
+# 前缀列表并行探活：喂完整子域 p.$DOM 给 xargs，{} 内联替换（MSYS 下 sh -c 的 positional 传参 _ "$DOM" 会丢前缀，只有 {} 稳）
+CT=$(for p in $_PFX; do printf '%s.%s\n' "$p" "$DOM"; done | xargs -P 20 -I{} sh -c 'ip=$(curl -sk4 -m 8 "https://dns.alidns.com/resolve?name={}&type=A" | grep -oE "\"type\":1,\"data\":\"[0-9.]+\"" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | sort -u | tr "\n" " "); [ -n "$ip" ] && echo "{} => $ip"' 2>/dev/null)
+CT=$(echo "$CT" | grep -E '^[a-z0-9.-]+ => ' | cut -d' ' -f1 | sort -u)
 echo "$CT" > "$OUT/_subs_raw.txt"
 echo "$CT" | grep -v '^$' | head -40
 NSUB=$(echo "$CT" | grep -c '^' || true)

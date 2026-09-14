@@ -75,7 +75,7 @@ nuclei 非破坏扫：`bin/nuclei.exe -u <活资产URL> -t "bin/templates/http/m
 ## 工具链（项目 bin/，全部验证可跑）
 `bin/`：ffuf.exe(v2.1) / katana.exe(v1.7) / nuclei.exe(v3.11.1) / httpx.exe(PD v1.12，**非** Python httpx 包) + `bin/templates/`(nuclei 模板本地库)。清单+重装脚本见 `bin/MANIFEST.md` 与 `tools/install-toolchain.sh`（**含 nuclei 模板本地化 download_templates**）。
 自有工具（tools/）：`hunter-cli.sh`（subs/probe 自研腿）、`mailacct.py`（合规双邮箱，收件侧实测）、`xssprobe.py`（Playwright 三态判定，A/B/C 实测）、`install-toolchain.sh`、`push-to-github.sh`。
-铺进 PATH：`export PATH="$(pwd)/bin:$PATH"`（在项目根）。Playwright 需用 Hermes venv python：`C:/Users/ThinkPad/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe`。
+铺进 PATH：`export PATH="$(pwd)/bin:$PATH"`（在项目根）。Playwright 宿主解释器自动探测：`HUNTER_PYTHON` 显式指定 > Hermes agent venv（`$LOCALAPPDATA/hermes/hermes-agent/venv/Scripts/python.exe`，代码按 `LOCALAPPDATA` 动态拼，不写死某台机器）> 系统 PATH python。跨机不用改路径。
 
 ## 截图配方（用户拍，我给清单）
 归属证明三张必做：`1_归属_首页`(logo+厂商名) `2_归属_备案号`(页脚ICP原文) `3_归属_证据位置`。

@@ -80,13 +80,14 @@ cmd_subs() { # 阶段1 自研子域枚举：DoH批量200前缀 + crt.sh CT（被
     | grep -vixE '^(a|an|the|of|in|for|and|to|is|on|com|cn)$' | sort -u | head -8 | tr '\n' ' ' )
   [ -n "$BRAND" ] && echo "⑧ 官网自动抽品牌/主体词追加前缀: $BRAND"
   PFX="$PFX $BRAND"
+  # 并行 20 路 DoH 探活（~400 前缀 ≈20s；合规：只查阿里 DoH 不碰目标）
+  # {} 内联替换写法（喂完整子域 p.DOM）：MSYS 下 sh -c 的 positional 传参(_ "$DOM")不可靠会丢前缀，
+  # 只有 {} 内联替换稳。输出 p.DOM => ip。
   : > "$out/_subs.txt"
-  for p in $PFX; do
-    case "$p" in www|app|*|?) : ;; *) continue;; esac
-    local s="$p.$DOM"; local ip; ip=$(doh "$s")
-    [ -n "$ip" ] && echo "$s  =>  $ip" >> "$out/_subs.txt"
-  done
-  echo "== DoH 前缀命中 =="; cat "$out/_subs.txt" 2>/dev/null
+  local CT
+  CT=$(for p in $PFX; do printf '%s.%s\n' "$p" "$DOM"; done | xargs -P 20 -I{} sh -c 'ip=$(curl -sk4 -m 8 "https://dns.alidns.com/resolve?name={}&type=A" | grep -oE "\"type\":1,\"data\":\"[0-9.]+\"" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | sort -u | tr "\n" " "); [ -n "$ip" ] && echo "{}  =>  $ip"' 2>/dev/null)
+  echo "$CT" | grep -E '^[a-z0-9.-]+  => ' | sort -u > "$out/_subs.txt"
+  echo "== DoH 前缀命中 ($(wc -l < "$out/_subs.txt") 条) =="; cat "$out/_subs.txt" 2>/dev/null
   # ── 姊妹 TLD 变体扫（A1"姊妹域"第一渠道自动化）──
   # 同品牌活面常藏在 .com.cn/.cn/.net/.co/.org（.com→.com.cn 中文站高发）。
   # 抽品牌词（去末段 TLD）逐个 DoH 查变体 apex；有 A 记录=活资产。合规：每变体 1 发 DoH，不碰目标。
@@ -279,12 +280,15 @@ cmd_icp() { # A4 归属证明三件套素材：抓官网首页 → 提 ICP备案
   echo "== hunter icp $DOM（归属证据素材，铁律5）=="
   dl "https://www.$DOM/" "$html" >/dev/null
   echo "首页 $(wc -c < "$html" 2>/dev/null | tr -d ' ')B -> $html"
-  local f="$out/icp_evidence.md"; {
+  local f="$out/icp_evidence.md"
+  # 去标签纯文本（供版权行提可读，不喂原始 markup）
+  local clean="$out/_icp_clean.txt"; sed 's/<[^>]*>/ /g' "$html" 2>/dev/null | tr -s ' \t' ' ' > "$clean"
+  {
     echo "# 归属证明素材 — $DOM"
-    echo "## ① ICP 备案号（页脚逐字原文，截图1用）"
-    grep -oE '(沪|鲁|京|粤|苏|浙|皖|冀|豫|桂|湘|鄂|滇|黔|甘|新|藏|陕|晋|赣|蒙|宁|青|琼)?ICP备[0-9A-Za-z-]+' "$html" 2>/dev/null | sort -u
-    echo "## ② 公司全称/版权（逐字，截图2用）"
-    grep -oiE '(Copyright|版权所有)[^<]{0,60}' "$html" 2>/dev/null | sort -u | head -5
+    echo "## ① ICP 备案号（页脚逐字原文，含'号'，截图1用）"
+    grep -oE '(沪|鲁|京|粤|苏|浙|皖|冀|豫|桂|湘|鄂|滇|黔|甘|新|藏|陕|晋|赣|蒙|宁|青|琼)?ICP备[0-9]+号(-[0-9]+)?' "$html" 2>/dev/null | sort -u
+    echo "## ② 版权/公司全称（去标签可读，逐字核对，截图2用）"
+    grep -oiE '(copyright|版权所有)[^|]{0,40}' "$clean" 2>/dev/null | sort -u | head -5
     echo "## ③ 官网 logo（截图3：首页 logo 路径）"
     grep -oiE '<img[^>]*src="[^"]*(logo|icon)[^"]*"' "$html" 2>/dev/null | head -3
     echo "## 截图清单（用户拍，逐张命名）"
