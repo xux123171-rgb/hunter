@@ -21,9 +21,11 @@ dohc() { # CNAME
 }
 
 echo "==> [$DOM] 阶段1: 子域枚举 (DoH批量200前缀; crt.sh 走 hunter-cli subs 自研补长尾)"
+# 并行 20 路（否则 200 前缀 × 1.5s/发 ≈ 5min+；并行后 <30s。合规:DoH 查询不碰目标）
 CT=$(for p in www app api wap m h5 admin oa mail portal test dev old shop new cms erp crm hr srm wms ebidding e bidding zhaobiao openapi open api2 v1 v2 mobile applet mp pay sms jk jiankang yuyue guahao register login sso iam id oss bucket storage cdn img static assets file download dcdn gw gateway svc web page site news bbs forum forum1 blog wiki help support faq contact about hr2 it info data bigdata ai iot edge cloud vc vc2 vpn ssl cert log syslog monitor zabbix grafana kibana jenkins gitlab git svn gitea harbor registry nexus maven pypi npm docker k8s kubernetes etcd redis mysql oracle db sql mssql postgres pg mssql2 ldap ad dc nfs ftp sftp s3 minio cos tos oss2 obs aso eip slb alb nlb clb waf ddos antiddos antiwebapp botshield botshield2 edgeone esa waf2 aegis lychee yun jhelper jkyy yym ydy pacs his emr lis rpms 120 114 95598 95518 400 800 100 200 300 4008008009 4001000 8009 5598 zgyy zyy tjyy tj 12345 12346 12347 11112 22223 33334 44445 55556 66667 77778 88889 99990; do
   echo "$p.$DOM"
-done | while read -r s; do ip=$(doh "$s"); [ -n "$ip" ] && echo "$s => $ip"; done | grep '=>' | cut -d' ' -f1)
+done | xargs -P 20 -I{} sh -c 'ip=$(curl -sk4 -m 8 "https://dns.alidns.com/resolve?name={}&type=A" | grep -oE "\"type\":1,\"data\":\"[0-9.]+\"" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | sort -u | tr "\n" " "); [ -n "$ip" ] && echo "{} => $ip"')
+CT=$(echo "$CT" | grep '=>' | cut -d' ' -f1 | sort -u)
 echo "$CT" > "$OUT/_subs_raw.txt"
 echo "$CT" | grep -v '^$' | head -40
 NSUB=$(echo "$CT" | grep -c '^' || true)
@@ -56,10 +58,15 @@ while read -r sub; do
   [ -z "$sub" ] && continue
   ip=$(doh "$sub"); [ -z "$ip" ] && continue
   case "$ip" in 127.*|10.*|192.168.*|172.16.*|172.17.*|172.31.*) echo "  $sub 内网IP $ip (跳过探活)"; continue;; esac
-  hdr=$(curl -sk4 -m 12 -A "$UA" -o "$OUT/_b.html" -D "$OUT/_h.txt" -w "%{http_code} %{size_download}" "https://$sub/" 2>/dev/null)
+  # MCP 子进程兜底：某些 bash 环境(/usr/bin/curl 旧版)写文件失败/HTTPS 失败 → 管道重取 + http 回退（老站 https 死 http 活）
+  hdr=$(curl -sk4 -m 12 -A "$UA" -o "$OUT/_b.html" -w "%{http_code} %{size_download}" "https://$sub/" 2>/dev/null)
+  case "$hdr" in 000*|"") hdr=$(curl -sk4 -m 10 -A "$UA" -o "$OUT/_b.html" -w "%{http_code} %{size_download}" "http://$sub/" 2>/dev/null);; esac
+  curl -sk4 -m 12 -A "$UA" -D "$OUT/_h.txt" -o /dev/null "https://$sub/" 2>/dev/null
+  [ -s "$OUT/_h.txt" ] || curl -sk4 -m 10 -A "$UA" -D "$OUT/_h.txt" -o /dev/null "http://$sub/" 2>/dev/null
   code=$(echo "$hdr" | tail -1 | awk '{print $1}')
   sz=$(echo "$hdr" | tail -1 | awk '{print $2}')
-  srv=$(grep -iE '^server:' "$OUT/_h.txt" | head -1 | sed 's/^[Ss]erver: *//' | tr -d '\r')
+  srv=$(grep -iE '^server:' "$OUT/_h.txt" | head -1 | sed 's/^[Ss]erver: *//' | tr -d '
+')
   cks=$(grep -iE '^set-cookie:' "$OUT/_h.txt" | head -1 | sed 's/^[Ss]et-[Cc]ookie: *//' | tr -d '\r' | cut -c1-60)
   waf=$(grep -oiE 'waf|触发.*防护|acw_tc|CT2-WAAP|安全验证|slide|captcha' "$OUT/_b.html" 2>/dev/null | sort -u | tr '\n' ';')
   echo "  [$code ${sz}B] $sub srv=[$srv] ck=[$cks] waf=[$waf]"

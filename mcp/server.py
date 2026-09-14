@@ -201,9 +201,9 @@ def hunter_crawl(url: str, depth: int = 2, js: bool = True) -> str:
 
 
 @mcp.tool()
-def hunter_scan(url: str, severity: str = "critical,high", tags: str = "exposed-panels,misconfig,auth-bypass",
+def hunter_scan(url: str, severity: str = "critical,high", tags: str = "exposed-panels,exposure,misconfig,auth-bypass,tech",
                 rate_limit: int = 5) -> str:
-    """阶段4 非破坏模板扫（nuclei 本地库 bin/templates，限速默认5，合规）：暴露面板/错误配置/认证绕过。"""
+    """阶段4 非破坏模板扫（nuclei 本地库 bin/templates，限速默认5，合规）：暴露面板/错误配置/认证绕过/技术栈。"""
     out = _scratch(_slug_of(url))
     tdir = f"{BIN}\\templates\\http"
     args = [f"-u", f"{url}", f"-t", f"{tdir}", f"-severity", f"{severity}",
@@ -212,7 +212,11 @@ def hunter_scan(url: str, severity: str = "critical,high", tags: str = "exposed-
     _run_sh(f'"{_eng("nuclei")}" ' + " ".join(json.dumps(a) for a in args), timeout=600)
     f = Path(out) / "nuclei.txt"
     txt = f.read_text(encoding="utf-8", errors="replace") if f.exists() else ""
-    return (txt.strip() or "无命中（nuclei 本地模板已跑；0 命中=对该 tags 家族干净，注意大模板库耗时长）")[:20000]
+    hits = [l for l in txt.splitlines() if l.strip()]
+    if not hits:
+        # 0 命中必须自检 tag 拼写：nuclei 不认识的 tag 静默 0 命中=假阴性陷阱（huntlab 实战抓过）
+        return "无命中（tags=" + tags + "）。⚠️ 报 0 命中前先核对：tag 是否 nuclei 合法名（exposed-panel≠exposed-panels），合法名列表见 bin/templates 模板头部；建议二次跑 -tags tech 确认技术栈可检出，否则本结果不可当『干净』证据。"
+    return "\n".join(hits)[:20000]
 
 
 @mcp.tool()
@@ -223,11 +227,17 @@ def hunter_fuzz(url: str, wordlist: str = "", rate_limit: int = 5) -> str:
     wl = wordlist or f"{TOOLS}\\wordlists\\common.txt"
     args = [f"-u", f"{url}", f"-w", f"{wl}", f"-mc", "200,204,301,302,307,401,403,405",
             f"-rate", str(max(1, int(rate_limit))), "-t", "5",
-            f"-o", f"{out}\\ffuf.txt"]
-    _run_sh(f'"{_eng("ffuf")}" ' + " ".join(json.dumps(a) for a in args), timeout=600)
+            f"-o", f"{out}\\ffuf.txt", "-of", "json", "-or"]
+    _run_sh(f'"{_eng("ffuf")}" -s ' + " ".join(json.dumps(a) for a in args), timeout=600)
     f = Path(out) / "ffuf.txt"
-    txt = f.read_text(encoding="utf-8", errors="replace") if f.exists() else ""
-    return (txt.strip() or "无命中（ffuf 限速 5，全量词表跑完耗时较长；命中含 401/403 的越权面）")[:20000]
+    if not f.exists():  # -or: 0 结果不建文件（防读旧文件假命中）
+        return "无命中（ffuf 限速 5；-or 模式 0 结果不落盘，本结果可信为空。词表=tools/wordlists/common.txt 共 10 条，覆盖面测试建议传大 wordlist）"
+    try:
+        data = json.loads(f.read_text(encoding="utf-8", errors="replace") or "{}")
+        rows = [f"[{r.get('status')} {r.get('length')}B] {r.get('url')}" for r in data.get("results", [])]
+        return ("\n".join(rows) or "无命中")[:20000]
+    except Exception as e:
+        return f"ffuf 结果解析失败: {e}（原始文件 {f}）"
 
 
 @mcp.tool()

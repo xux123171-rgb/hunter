@@ -129,9 +129,22 @@ cmd_fuzz() { # 阶段4 目录/端点 fuzz（调 ffuf，限速；默认小词表�
   local SLUG="${HUNTER_SLUG:-x}"; local out="$ROOT/scratch/$SLUG"; mkdir -p "$out"
   echo "== hunter fuzz $URL (ffuf, rate5, 非破坏) =="
   local WO="$(wp "$WL")" OF="$(wp "$out/ffuf.txt")"
-  # ffuf 2.x 无 -retries flag（只有 -retry）；不吞 stderr，失败能看见
-  "$F" -u "$URL" -w "$WO" -mc 200,204,301,302,307,401,403,405 -rate 5 -t 5 -o "$OF" 2>&1 | grep -iE "Error|flag|results|Found|[0-9]+$" | head -8
-  echo "→ 命中存 $out/ffuf.txt"
+  # ffuf 2.x：-s 静默(防进度条污染 stdout) -or 无结果不建文件(防读到旧/空文件误判) -of json
+  "$F" -s -u "$URL" -w "$WO" -mc 200,204,301,302,307,401,403,405 -rate 5 -t 5 -or -of json -o "$OF" 2>&1 | grep -iE "Error|flag" | head -4
+  if [ -f "$out/ffuf.txt" ]; then
+    python - "$OF" <<'PY'
+import json,sys
+try:
+    d=json.load(open(sys.argv[1],encoding="utf-8",errors="replace"))
+    for r in d.get("results",[]):
+        print(f"  [{r.get('status')} {r.get('length')}B] {r.get('url')}")
+except Exception as e:
+    print("  (结果解析失败:",e,")")
+PY
+    echo "→ 命中存 $out/ffuf.txt"
+  else
+    echo "→ 无命中（-or：0 结果不建文件；词表小可加自定 wordlist）"
+  fi
 }
 
 cmd_monitor() { # 持续侦察：同 target 重跑 subs+probe，与上次快照 diff，只报"新增资产"（忘下线的旧站=出洞重灾区）
