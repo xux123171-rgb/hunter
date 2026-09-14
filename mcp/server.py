@@ -155,7 +155,9 @@ def _eng(name: str) -> str:
 
 
 def _scratch(slug: str) -> str:
-    d = f"{ROOT}\\scratch\\{slug}"
+    # 产物根目录：默认落仓库内 scratch/（clone 即用）；HUNTER_SCRATCH 环境变量可覆盖。
+    base = os.environ.get("HUNTER_SCRATCH") or str(ROOT / "scratch")
+    d = os.path.join(base, slug)
     Path(d).mkdir(parents=True, exist_ok=True)
     return d
 

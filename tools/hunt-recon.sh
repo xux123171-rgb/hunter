@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # hunt-recon.sh — 阶段1+2 一键侦察（零落地：只出摘要表，不下全量文件）
 # 用法: bash hunt-recon.sh <domain> [slug]
-# 产出: D:/research/scratch/<slug>/assets.md  (子域+IP)  probe.md (活体指纹)
+# 产出: <HUNTER_SCRATCH|仓库>/scratch/<slug>/assets.md (子域+IP)  probe.md (活体指纹)
 set -u
 DOM="${1:?usage: hunt-recon.sh <domain> [slug]}"
 SLUG="${2:-${DOM//./_}}"
-OUT="/d/research/scratch/$SLUG"
+# 产物根目录：默认落仓库内 scratch/（clone 即用）；HUNTER_SCRATCH 可覆盖（如本机指回 D:/research/scratch）
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OUT="${HUNTER_SCRATCH:-$HERE/scratch}/$SLUG"
 mkdir -p "$OUT"
 UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0 Safari/537.36"
 

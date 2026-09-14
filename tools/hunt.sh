@@ -32,10 +32,13 @@ echo "[阶段0] scope.md 占位已建 → 人工补全后 Agent 才往下打"
 # ---- 阶段1 资产测绘 ----
 echo; echo "==== 阶段1 资产测绘 ===="
 bash "$ROOT/tools/hunt-recon.sh" "$DOM" "$SLUG" 2>&1 | sed 's/^/  /'
-# 合并 recon 产物到 scratch
-cp -f /d/research/scratch/$SLUG/_assets.md  "$SCR/assets.md"  2>/dev/null
-cp -f /d/research/scratch/$SLUG/_probe.md   "$SCR/probe.md"   2>/dev/null
-cp -f /d/research/scratch/$SLUG/_home_js.txt "$SCR/home_js.txt" 2>/dev/null
+# 合并 recon 产物到 scratch（recon 腿的产物根 = $HUNTER_SCRATCH，默认=仓库 scratch → 同源免拷）
+RECON_SRC="${HUNTER_SCRATCH:-$ROOT/scratch}/$SLUG"
+if [ "$(cd "$RECON_SRC" 2>/dev/null && pwd)" != "$(cd "$SCR" 2>/dev/null && pwd || echo x)" ]; then
+  cp -f "$RECON_SRC/_assets.md"   "$SCR/assets.md"   2>/dev/null
+  cp -f "$RECON_SRC/_probe.md"    "$SCR/probe.md"    2>/dev/null
+  cp -f "$RECON_SRC/_home_js.txt" "$SCR/home_js.txt" 2>/dev/null
+fi
 
 # 可选：crt.sh 引擎（自研 hunter-cli subs，补 DoH 前缀之外的长尾子域）
 #   用法: bash tools/hunter-cli.sh subs $DOM
