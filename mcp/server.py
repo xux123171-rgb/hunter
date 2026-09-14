@@ -238,6 +238,13 @@ def hunter_matrix(slug: str, domain: str = "") -> str:
 
 
 @mcp.tool()
+def hunter_monitor(domain: str, slug: str = "") -> str:
+    """持续侦察（快照 diff）：重跑子域+活体普查与上次快照对比，只报新增/下线资产。
+    新增资产=忘下线的旧站(出洞重灾区)重点打；下线资产=鬼资产候选(站没了接口常还活)。"""
+    return _run_sh(f"bash '{TOOLS.as_posix()}/hunter-cli.sh' monitor {json.dumps(domain)} {json.dumps(slug or domain)}", timeout=600)
+
+
+@mcp.tool()
 def hunter_xss(url: str, selector: str = "", label: str = "", submit_selector: str = "",
                canary: str = "HWXSS", post_back: str = "") -> str:
     """阶段4 存储XSS 三态判定（自研 xssprobe，Playwright 元素级 canary，惰性<img>非破坏）：
@@ -274,6 +281,7 @@ def hunter_brain(what: str = "sop") -> str:
                "sop": ROOT / "sop" / "SOP.md",
                "gates": ROOT / "references" / "impact-priority-gates.md",
                "waf": ROOT / "references" / "waf-bypass.md",
+               "ladder": ROOT / "references" / "death-escalation-ladder.md",
                "race": ROOT / "references" / "race-business-logic.md"}
     path = mapping.get(what, mapping["playbook"])
     try:

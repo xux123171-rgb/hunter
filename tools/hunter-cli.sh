@@ -134,6 +134,23 @@ cmd_fuzz() { # 阶段4 目录/端点 fuzz（调 ffuf，限速；默认小词表�
   echo "→ 命中存 $out/ffuf.txt"
 }
 
+cmd_monitor() { # 持续侦察：同 target 重跑 subs+probe，与上次快照 diff，只报"新增资产"（忘下线的旧站=出洞重灾区）
+  local DOM="${1:?domain}"; local SLUG="${2:-${DOM//./_}}"
+  local snapdir="$ROOT/scratch/$SLUG"; mkdir -p "$snapdir/snapshots"
+  echo "== hunter monitor $DOM（快照 diff 模式，零落地）=="
+  bash "$HERE/tools/hunt-recon.sh" "$DOM" "$SLUG" >/dev/null 2>&1
+  local cur="$snapdir/snapshots/$(date +%Y%m%d_%H%M).subs"
+  sort -u "$snapdir/_subs_raw.txt" > "$cur" 2>/dev/null || : > "$cur"
+  local prev; prev=$(ls -1t "$snapdir/snapshots/"*.subs 2>/dev/null | sed -n 2p)
+  if [ -z "$prev" ]; then
+    echo "首次快照：$(wc -l < "$cur") 个活子域 → $cur（下次 monitor 起出 diff）"
+  else
+    echo "上次: $prev ($(wc -l < "$prev") 个)  本次: $(wc -l < "$cur") 个"
+    echo "== 新增资产（重点打这些）=="; comm -13 "$prev" "$cur" | sed 's/^/  + /'
+    echo "== 下线资产（鬼资产候选：站没了接口可能还活）=="; comm -23 "$prev" "$cur" | sed 's/^/  - /'
+  fi
+}
+
 cmd_matrix() { # 阶段4 开工骨架：可打面 A1-A9 × 活资产 的矩阵表（判死/实锤/已试 三终态制）
   local SLUG="${1:?slug}"; local DOM="${2:-$SLUG}"
   local out="$ROOT/scratch/$SLUG"; mkdir -p "$out"
@@ -172,6 +189,7 @@ case "${1:-help}" in
   probe) shift; cmd_probe "$@";;
   crawl) shift; cmd_crawl "$@";;
   matrix) shift; cmd_matrix "$@";;
+  monitor) shift; cmd_monitor "$@";;
   scan) shift; cmd_scan "$@";;
   fuzz) shift; cmd_fuzz "$@";;
   report) shift; cmd_report "$@";;
