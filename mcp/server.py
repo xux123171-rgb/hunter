@@ -94,11 +94,10 @@ def _which(name: str, *extra: str) -> str:
 
 def _discover_bash() -> str:
     # 自动探测本机实际 bash 位置（git-bash 可能装在用户目录，如 C:\Users\<u>\Git\...），
-    # 不再只认 Program Files 默认位。
+    # 不再写死任何一台机器的路径——全部从 USERPROFILE / Program Files 动态拼。
     home = os.environ.get("USERPROFILE", "")
     user_git = [f"{home}\\Git\\usr\\bin\\bash.EXE", f"{home}\\Git\\bin\\bash.EXE"] if home else []
     return _which("bash",
-                  r"C:\Users\ThinkPad\Git\usr\bin\bash.EXE",
                   *user_git,
                   r"C:\Program Files\Git\usr\bin\bash.EXE",
                   r"C:\Program Files (x86)\Git\usr\bin\bash.EXE",
@@ -158,9 +157,14 @@ def _eng(name: str) -> str:
 
 
 def _scratch(slug: str) -> str:
-    # 产物根目录：默认落仓库内 scratch/（clone 即用）；HUNTER_SCRATCH 环境变量可覆盖。
-    base = os.environ.get("HUNTER_SCRATCH") or str(ROOT / "scratch")
-    d = os.path.join(base, slug)
+    # 产物根目录：与 CLI scratchdir() 同一套规则（tools/hunter-scratch.sh）：
+    # HUNTER_SCRATCH 设了 = 该目标产物根直接用不叠 slug（CLI 与 MCP 两腿落同一目录，防 <slug>/<slug>）；
+    # 未设 = <仓库根>/scratch/<slug>（clone 即用）。
+    base = os.environ.get("HUNTER_SCRATCH")
+    if base:
+        d = base.rstrip("/")
+    else:
+        d = os.path.join(str(ROOT), "scratch", slug)
     Path(d).mkdir(parents=True, exist_ok=True)
     return d
 
@@ -309,7 +313,8 @@ def hunter_brain(what: str = "sop") -> str:
                "race": ROOT / "references" / "race-business-logic.md"}
     path = mapping.get(what, mapping["playbook"])
     try:
-        return path.read_text(encoding="utf-8", errors="replace")[:20000]
+        # D2: 本地读文件不耗流量，放宽截断（原 20000 在 PLAYBOOK 长大后会截掉判死梯子/三件套 SOP 后半）
+        return path.read_text(encoding="utf-8", errors="replace")[:60000]
     except FileNotFoundError:
         return f"找不到 {path}（设 HUNTER_HOME 指向项目根；可选: {list(mapping)}）"
 

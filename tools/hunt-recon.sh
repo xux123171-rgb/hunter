@@ -7,13 +7,9 @@ DOM="${1:?usage: hunt-recon.sh <domain> [slug]}"
 SLUG="${2:-${DOM//./_}}"
 # 产物根目录：默认落仓库内 scratch/（clone 即用）；HUNTER_SCRATCH 可覆盖（如本机指回 D:/research/scratch）
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT="${HUNTER_SCRATCH:-$HERE/scratch}"
-# ⑤ 防嵌套：HUNTER_SCRATCH 已按目标命名（basename == slug）时不再叠 <slug>/<slug>
-if [ -n "${HUNTER_SCRATCH:-}" ] && [ "$(basename "$HUNTER_SCRATCH")" = "$SLUG" ]; then
-  :
-else
-  OUT="$OUT/$SLUG"
-fi
+# ⑤ 产出目录解析：统一走 tools/hunter-scratch.sh（与 hunter-cli 共用一份，两腿同目录，防 <slug>/<slug> 叠层）
+source "$HERE/tools/hunter-scratch.sh"
+OUT="$(scratchdir "$SLUG")"
 mkdir -p "$OUT"
 UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0 Safari/537.36"
 
@@ -68,17 +64,14 @@ while read -r sub; do
   [ -z "$sub" ] && continue
   ip=$(doh "$sub"); [ -z "$ip" ] && continue
   case "$ip" in 127.*|10.*|192.168.*|172.16.*|172.17.*|172.31.*) echo "  $sub 内网IP $ip (跳过探活)"; continue;; esac
-  # ③ shell 重定向验存（替代 curl -o/-D 的 MSYS 0 字节坑）；https 死回退 http
+  # ③+C1 shell 重定向验存；https 死回退 http。正常 2 发/子域（body 1 发 + code/响应头 1 发合并）
   curl -sk4 -m 12 -A "$UA" "https://$sub/" > "$OUT/_b.html" 2>/dev/null
-  BZ=$(wc -c < "$OUT/_b.html" 2>/dev/null | tr -d ' ')
-  case "${BZ:-0}" in 0) # https 0 字节 → http 回退（老站 https 死 http 活）
-    curl -sk4 -m 10 -A "$UA" "http://$sub/" > "$OUT/_b.html" 2>/dev/null
-    BZ=$(wc -c < "$OUT/_b.html" 2>/dev/null | tr -d ' ');; esac
-  code=$(curl -sk4 -m 12 -A "$UA" -o /dev/null -w "%{http_code}" "https://$sub/" 2>/dev/null)
-  [ "$code" = "000" ] && code=$(curl -sk4 -m 10 -A "$UA" -o /dev/null -w "%{http_code}" "http://$sub/" 2>/dev/null)
-  curl -sk4 -m 12 -A "$UA" -sS -D "$OUT/_h.txt" -o /dev/null "https://$sub/" 2>/dev/null || true
-  [ -s "$OUT/_h.txt" ] || curl -sk4 -m 10 -A "$UA" -sS -D "$OUT/_h.txt" -o /dev/null "http://$sub/" 2>/dev/null || true
-  sz="${BZ:-0}"
+  BZ=$(wc -c < "$OUT/_b.html" 2>/dev/null | tr -d ' '); BZ="${BZ:-0}"
+  proto=https
+  [ "$BZ" -eq 0 ] && { curl -sk4 -m 10 -A "$UA" "http://$sub/" > "$OUT/_b.html" 2>/dev/null; BZ=$(wc -c < "$OUT/_b.html" 2>/dev/null | tr -d ' '); BZ="${BZ:-0}"; proto=http; }
+  code=$(curl -sk4 -m 12 -A "$UA" "$proto://$sub/" -D "$OUT/_h.txt" -o /dev/null -w "%{http_code}" 2>/dev/null); code="${code:-000}"
+  [ "$code" = "000" ] && { code=$(curl -sk4 -m 10 -A "$UA" "http://$sub/" -D "$OUT/_h.txt" -o /dev/null -w "%{http_code}" 2>/dev/null); code="${code:-000}"; proto=http; }
+  sz="$BZ"
   srv=$(grep -iE '^server:' "$OUT/_h.txt" | head -1 | sed 's/^[Ss]erver: *//' | tr -d '
 ')
   cks=$(grep -iE '^set-cookie:' "$OUT/_h.txt" | head -1 | sed 's/^[Ss]et-[Cc]ookie: *//' | tr -d '\r' | cut -c1-60)
@@ -91,3 +84,27 @@ cat "$OUT/_probe.md"
 
 echo; echo "==> 产出在 $OUT"
 ls -la "$OUT"
+
+# ── B1 目标价值预判：基于上面已探信号给"打/不打"定论（纯本地，不增请求）─────
+# 判型经验（写进工具）：hb2h型(内网IP+公网可达)=出洞率最高 · 遗留无WAF=次 · 单域强WAF壳站/认证型=判死别磕
+echo; echo "==> 目标价值预判（出洞率 + 判型 + 下一刀建议）"
+# 信号1: 首页内网IP:端口（hb2h 候选）
+INIP=$(grep -vE '^(127\.|0\.|255\.)' "$OUT/_home_ips.txt" 2>/dev/null | grep -E ':' | head -1)
+# 信号2: 活子域里有多少带 WAF 指纹
+WAFSUB=$(grep -cE 'acw_tc|yundunwaf|触发.*防护|CT2-WAAP' "$OUT/_probe.md" 2>/dev/null || echo 0)
+LIVE=$(grep -c '^|' "$OUT/_probe.md" 2>/dev/null || echo 0)
+if [ -n "$INIP" ]; then
+  echo "  ★ hb2h 型（出洞率最高）：首页漏内网IP:端口 [$INIP] —— 直进阶段2，找公网可达管理面/SSRF 回显"
+  echo "  下一刀: 该内网IP 同资产是否有公网端口; 有 SSRF 位则内网IP当靶标(合规高危实锤)"
+else
+  if [ "${LIVE:-0}" -le 2 ] && [ "${WAFSUB:-0}" -ge 1 ]; then
+    echo "  ✗ 单域强WAF壳站（兰大一院型）：活子域≤2 且带WAF —— 未鉴权面大概率封顶，出洞率低"
+    echo "  下一刀: 转 App/子域扩面(阶段1多渠道)，别磕 WAF"
+  elif [ "${WAFSUB:-0}" -ge 3 ]; then
+    echo "  ✗ 多子域但全线带WAF —— 走 waf-bypass 三手法(源站直连/业务逻辑面/race)，别硬刚"
+  else
+    echo "  ◆ 遗留/无WAF 候选（次优）：${LIVE} 个活子域、无强WAF指纹 —— 老系统逐个探未鉴权面"
+    echo "  下一刀: 按 Server 指纹挑 IIS/Tomcat/老框架，试未鉴权 .ashx/.actuator/.git"
+  fi
+fi
+echo "  （预判仅基于已探信号供决策；真要判死仍按 ladder 爬完 + 记 hunter dead）"

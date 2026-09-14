@@ -86,6 +86,14 @@ if command -v hermes >/dev/null 2>&1; then
   hermes mcp list 2>&1 | grep -i hunter | head -2
 fi
 
+# ── ⑥ 浏览器环境（xssprobe 依赖 Playwright + chrome-for-testing 二进制）────────
+# A3 根治：此前 ⑥ 只在 install-toolchain.sh，一键路径（本脚本）永不触发。
+# 抽成公共 tools/install-browser.sh 后，一键重装也能补齐浏览器二进制。
+say "⑥ 浏览器环境（xssprobe / agent-browser）"
+source "$HERE/tools/install-browser.sh"
+setup_playwright
+setup_browser
+
 # ── ② nuclei 模板（放最后：慢、且只增强 scan 一条腿，不挡其余 7 腿）─
 say "② nuclei 模板 bin/templates/（最后，可后台）"
 if [ -d "$HERE/bin/templates/http" ] && [ "$(find "$HERE/bin/templates/http" -name '*.yaml' 2>/dev/null | wc -l)" -gt 100 ]; then

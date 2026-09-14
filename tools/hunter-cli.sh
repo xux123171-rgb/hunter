@@ -13,6 +13,8 @@
 #     hunter scan   <url-or-listfile>   阶段2/4 模板扫(调 nuclei, 非破坏, 限速)
 #     hunter fuzz   <url> [wordlist]    阶段4 目录/端点 fuzz(调 ffuf, 限速)
 #     hunter report <slug>              阶段6 聚合报告骨架
+#     hunter icp  <domain> [slug]       A4 归属证据素材(ICP备案/公司全称/logo, 铁律5逐字核对)
+#     hunter dead <slug> <线索> <证据> [N发]   A5 滚动判死记录(标准化+请求数可复核)
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # 项目根
 BIN="$HERE/bin"
@@ -53,15 +55,8 @@ wp() { # wp <path> -> 原生引擎可用的 Windows 路径
 doh() { curl -sk4 -m 8 "https://dns.alidns.com/resolve?name=$1&type=A" \
   | grep -oE '"type":1,"data":"[0-9.]+"' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | sort -u | tr '\n' ' '; }
 
-# ⑤ 产出目录解析：HUNTER_SCRATCH 已按目标命名（如 D:/scratch/lsrc，slug=lsrc）时不再叠 <slug>/<slug>
-scratchdir() { # scratchdir <slug> -> echo 该 slug 的实际产出目录
-  local slug="$1"
-  if [ -n "${HUNTER_SCRATCH:-}" ]; then
-    if [ "$(basename "$HUNTER_SCRATCH")" = "$slug" ]; then echo "$HUNTER_SCRATCH"; else echo "$HUNTER_SCRATCH/$slug"; fi
-  else
-    echo "$ROOT/scratch/$slug"
-  fi
-}
+# ⑤ 产出目录解析：统一走 tools/hunter-scratch.sh（与 hunt-recon 共用一份，保证两腿同目录，不叠 <slug>/<slug>）
+source "$HERE/tools/hunter-scratch.sh"
 
 cmd_subs() { # 阶段1 自研子域枚举：DoH批量200前缀 + crt.sh CT（被墙则 CertSpotter 兜底）
   local DOM="${1:?domain}"; local SLUG="${2:-${DOM//./_}}"
@@ -97,7 +92,7 @@ cmd_subs() { # 阶段1 自研子域枚举：DoH批量200前缀 + crt.sh CT（被
 
 cmd_scope() { # 阶段0 占位
   local DOM="${1:?domain}"; local SLUG="${2:-${DOM//./_}}"
-  local out="$ROOT/scratch/$SLUG"; mkdir -p "$out"
+  local out; out=$(scratchdir "$SLUG"); mkdir -p "$out"
   cat > "$out/scope.md" <<EOF
 # 范围 & 红线 — $DOM
 - 平台/项目: __填__
@@ -116,13 +111,15 @@ cmd_recon() { # 阶段1+2 一键
 cmd_probe() { # 阶段2 活体指纹（纯自研 curl）
   local URL="${1:?url}"
   echo "== hunter probe $URL =="
-  local body code sz
-  # ③ code 用 -o /dev/null -w 取（可靠），body 走 stdout 落盘验存（绕 MSYS -o 0 字节坑）
-  curl -sk4 -m 12 -A "$UA" "$URL" > /tmp/_probe_body.$$ 2>/dev/null || true
+  local body code sz outdir
+  outdir=$(scratchdir x); mkdir -p "$outdir"
+  # ③+C1 根治：body 走 dl()（shell 重定向 + wc -c 验存，绕 MSYS -o 0 字节坑）；
+  # code 也只用 -o /dev/null -w（不落盘），不再裸写 /tmp/_probe_body.$$
   code=$(curl -sk4 -m 12 -A "$UA" -o /dev/null -w "%{http_code}" "$URL" 2>/dev/null); code="${code:-000}"
-  body=$(cat /tmp/_probe_body.$$ 2>/dev/null)
-  sz=$(wc -c < /tmp/_probe_body.$$ 2>/dev/null | tr -d ' '); sz="${sz:-0}"
-  rm -f /tmp/_probe_body.$$
+  dl "$URL" "$outdir/_probe_body" >/dev/null
+  body=$(cat "$outdir/_probe_body" 2>/dev/null)
+  sz=$(wc -c < "$outdir/_probe_body" 2>/dev/null | tr -d ' '); sz="${sz:-0}"
+  rm -f "$outdir/_probe_body"
   echo "status=$code bytes=$sz"
   echo "--- waf/captcha 指纹 ---"; echo "$body" | grep -oiE 'waf|触发.*防护|acw_tc|CT2-WAAP|slide|captcha|安全验证' | sort -u | tr '\n' ';'; echo
   echo "--- 内网IP:端口 泄露 ---"; echo "$body" | grep -oE '(?:[0-9]{1,3}\.){3}[0-9]{1,3}(:[0-9]{2,5})?' | grep -vE '^(127\.|0\.|255\.)' | sort -u
@@ -132,7 +129,7 @@ cmd_probe() { # 阶段2 活体指纹（纯自研 curl）
 cmd_crawl() { # 阶段3 面绘制（调 katana）
   local URL="${1:?url}"; local K; K=$(eng katana)
   [ -z "$K" ] && { echo "缺 katana，先跑 tools/install-toolchain.sh"; return 1; }
-  local SLUG="${HUNTER_SLUG:-$(echo "${URL#https://}" | sed 's/[/?].*//;s/./_/g')}"; local out="$ROOT/scratch/$SLUG"; mkdir -p "$out"
+  local SLUG="${HUNTER_SLUG:-$(echo "${URL#https://}" | sed 's/[/?].*//;s/./_/g')}"; local out; out=$(scratchdir "$SLUG"); mkdir -p "$out"
   echo "== hunter crawl $URL (katana) =="
   local O="$(wp "$out/katana_endpoints.txt")"
   "$K" -u "$URL" -d 2 -jc -kf all -aff -ct 2m -silent -o "$O" 2>/dev/null || \
@@ -143,7 +140,7 @@ cmd_crawl() { # 阶段3 面绘制（调 katana）
 cmd_scan() { # 阶段2/4 模板扫（调 nuclei，非破坏，限速；必用本地 bin/templates）
   local TGT="${1:?url 或 -l 列表文件}"; local N; N=$(eng nuclei)
   [ -z "$N" ] && { echo "缺 nuclei，先跑 tools/install-toolchain.sh"; return 1; }
-  local SLUG="${HUNTER_SLUG:-x}"; local out="$ROOT/scratch/$SLUG"; mkdir -p "$out"
+  local SLUG="${HUNTER_SLUG:-x}"; local out; out=$(scratchdir "$SLUG"); mkdir -p "$out"
   # 本地模板库（install-toolchain 拉的）；没有则退回 nuclei 默认下载目录
   local TDIR="$ROOT/bin/templates/http"
   [ ! -d "$TDIR" ] && { echo "⚠️ 本地模板 $TDIR 不存在，退回 nuclei 默认模板(可能联网下载)"; TDIR=""; }
@@ -161,7 +158,7 @@ cmd_fuzz() { # 阶段4 目录/端点 fuzz（调 ffuf，限速；默认小词表�
   local URL="${1:?url含FUZZ}"; local WL="${2:-$HERE/tools/wordlists/common.txt}"; local F; F=$(eng ffuf)
   [ -z "$F" ] && { echo "缺 ffuf，先跑 tools/install-toolchain.sh"; return 1; }
   [ -f "$WL" ] || { echo "词表不存在 $WL (先造 tools/wordlists/common.txt)"; return 1; }
-  local SLUG="${HUNTER_SLUG:-x}"; local out="$ROOT/scratch/$SLUG"; mkdir -p "$out"
+  local SLUG="${HUNTER_SLUG:-x}"; local out; out=$(scratchdir "$SLUG"); mkdir -p "$out"
   echo "== hunter fuzz $URL (ffuf, rate5, 非破坏) =="
   local WO="$(wp "$WL")" OF="$(wp "$out/ffuf.txt")"
   # ffuf 2.x：-s 静默(防进度条污染 stdout) -or 无结果不建文件(防读到旧/空文件误判) -of json
@@ -184,7 +181,7 @@ PY
 
 cmd_monitor() { # 持续侦察：同 target 重跑 subs+probe，与上次快照 diff，只报"新增资产"（忘下线的旧站=出洞重灾区）
   local DOM="${1:?domain}"; local SLUG="${2:-${DOM//./_}}"
-  local snapdir="$ROOT/scratch/$SLUG"; mkdir -p "$snapdir/snapshots"
+  local snapdir; snapdir=$(scratchdir "$SLUG"); mkdir -p "$snapdir/snapshots"
   echo "== hunter monitor $DOM（快照 diff 模式，零落地）=="
   bash "$HERE/tools/hunt-recon.sh" "$DOM" "$SLUG" >/dev/null 2>&1
   local cur="$snapdir/snapshots/$(date +%Y%m%d_%H%M).subs"
@@ -201,7 +198,7 @@ cmd_monitor() { # 持续侦察：同 target 重跑 subs+probe，与上次快照 
 
 cmd_matrix() { # 阶段4 开工骨架：可打面 A1-A9 × 活资产 的矩阵表（判死/实锤/已试 三终态制）
   local SLUG="${1:?slug}"; local DOM="${2:-$SLUG}"
-  local out="$ROOT/scratch/$SLUG"; mkdir -p "$out"
+  local out; out=$(scratchdir "$SLUG"); mkdir -p "$out"
   local m="$out/matrix.md"
   [ -f "$m" ] && { echo "矩阵已存在 → $m（续格不重建）"; return 0; }
   { echo "# 攻击面矩阵 $DOM（每格终态：实锤→finding / 已试(记请求数+响应特征) / 判死(证据编号进 deadlines.md)）"
@@ -229,6 +226,39 @@ EOF
   echo "报告骨架已建 → $out (findings/ pocs/ evidence/)"; echo "跑完测试后人工/aggregate 填 SUMMARY"
 }
 
+cmd_icp() { # A4 归属证明三件套素材：抓官网首页 → 提 ICP备案/公司全称/logo，供用户截图核对（铁律5 归属逐字）
+  local DOM="${1:?domain}"; local SLUG="${2:-${DOM//./_}}"
+  local out; out=$(scratchdir "$SLUG"); mkdir -p "$out"
+  local html="$out/_icp_home.html"
+  echo "== hunter icp $DOM（归属证据素材，铁律5）=="
+  dl "https://www.$DOM/" "$html" >/dev/null
+  echo "首页 $(wc -c < "$html" 2>/dev/null | tr -d ' ')B -> $html"
+  local f="$out/icp_evidence.md"; {
+    echo "# 归属证明素材 — $DOM"
+    echo "## ① ICP 备案号（页脚逐字原文，截图1用）"
+    grep -oE '(沪|鲁|京|粤|苏|浙|皖|冀|豫|桂|湘|鄂|滇|黔|甘|新|藏|陕|晋|赣|蒙|宁|青|琼)?ICP备[0-9A-Za-z-]+' "$html" 2>/dev/null | sort -u
+    echo "## ② 公司全称/版权（逐字，截图2用）"
+    grep -oiE '(Copyright|版权所有)[^<]{0,60}' "$html" 2>/dev/null | sort -u | head -5
+    echo "## ③ 官网 logo（截图3：首页 logo 路径）"
+    grep -oiE '<img[^>]*src="[^"]*(logo|icon)[^"]*"' "$html" 2>/dev/null | head -3
+    echo "## 截图清单（用户拍，逐张命名）"
+    echo "1_归属_首页(logo+厂商名) / 2_归属_备案号(页脚ICP原文) / 3_归属_证据位置"
+  } > "$f"
+  cat "$f"
+  echo "→ 素材存 $f（公司全称/备案号务必逐字核对原文，不脑补）"
+}
+
+cmd_dead() { # A5 滚动判死记录：hunter dead <slug> <线索> <证据> [N发]（标准化 + 记请求数，可被用户复核）
+  local SLUG="${1:?slug}"; shift
+  [ $# -lt 2 ] && { echo "用法: hunter dead <slug> <线索> <证据> [N发]"; return 1; }
+  local line="$1"; local ev="$2"; local n="${3:-}"
+  local out; out=$(scratchdir "$SLUG"); mkdir -p "$out"
+  local d="$out/deadlines.md"
+  if [ ! -f "$d" ]; then printf '# 判死线索 — %s\n\n| 时间 | 线索 | 证据(可复核) | 请求数 |\n|---|---|---|---|\n' "$SLUG" > "$d"; fi
+  echo "| $(date +%H:%M) | $line | $ev | ${n:-未计} 发 |" >> "$d"
+  echo "已记判死: $line（${n:-未计} 发）→ $d"
+}
+
 # dispatch
 case "${1:-help}" in
   subs) shift; cmd_subs "$@";;
@@ -241,6 +271,8 @@ case "${1:-help}" in
   scan) shift; cmd_scan "$@";;
   fuzz) shift; cmd_fuzz "$@";;
   report) shift; cmd_report "$@";;
+  icp) shift; cmd_icp "$@";;
+  dead) shift; cmd_dead "$@";;
   help|*)
     grep -E '^#   |^#     ' "${BASH_SOURCE[0]}" | sed 's/^# *//' | head -20
     echo; echo "引擎依赖在 $BIN (nuclei/ffuf/katana/httpx，第三方底层，靠 tools/install-toolchain.sh 重建)"
