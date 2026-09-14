@@ -87,6 +87,20 @@ cmd_subs() { # 阶段1 自研子域枚举：DoH批量200前缀 + crt.sh CT（被
     [ -n "$ip" ] && echo "$s  =>  $ip" >> "$out/_subs.txt"
   done
   echo "== DoH 前缀命中 =="; cat "$out/_subs.txt" 2>/dev/null
+  # ── 姊妹 TLD 变体扫（A1"姊妹域"第一渠道自动化）──
+  # 同品牌活面常藏在 .com.cn/.cn/.net/.co/.org（.com→.com.cn 中文站高发）。
+  # 抽品牌词（去末段 TLD）逐个 DoH 查变体 apex；有 A 记录=活资产。合规：每变体 1 发 DoH，不碰目标。
+  local BRANDONLY="${DOM%.*}"
+  echo "== 姊妹 TLD 变体（$BRANDONLY.*，各1发DoH，不碰目标）=="
+  : > "$out/_subs_siblings.txt"
+  local sib
+  for sib in "$BRANDONLY.cn" "$BRANDONLY.net" "$BRANDONLY.co" "$BRANDONLY.org" "$BRANDONLY.com.cn" "$BRANDONLY.com"; do
+    [ "$sib" = "$DOM" ] && continue
+    local sip; sip=$(doh "$sib"); [ -n "$sip" ] && echo "$sib  =>  $sip" >> "$out/_subs_siblings.txt"
+  done
+  sort -u -o "$out/_subs_siblings.txt" "$out/_subs_siblings.txt"
+  [ -s "$out/_subs_siblings.txt" ] && { echo "  ★ 姊妹变体有活A记录(常比主域松，重点打):"; cat "$out/_subs_siblings.txt"; } || echo "  （姊妹变体全零A记录，主域独占）"
+  echo "→ 姊妹变体存 $out/_subs_siblings.txt"
   echo "== CT 长尾（crt.sh，被墙则自动切 CertSpotter）=="
   : > "$out/_subs_ct.txt"
   # crt.sh 主源（国内常被墙）：失败/0 结果 → 静默落空，下面 CertSpotter 兜底
