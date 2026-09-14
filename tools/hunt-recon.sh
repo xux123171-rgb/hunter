@@ -22,11 +22,25 @@ dohc() { # CNAME
     | grep -oE '"type":5,"data":"[^"]+"' | sed 's/.*"data":"//;s/"//' | sort -u | tr '\n' ' '
 }
 
-echo "==> [$DOM] 阶段1: 子域枚举 (DoH批量200前缀; crt.sh 走 hunter-cli subs 自研补长尾)"
-# 并行 20 路（否则 200 前缀 × 1.5s/发 ≈ 5min+；并行后 <30s。合规:DoH 查询不碰目标）
-CT=$(for p in www app api wap m h5 admin oa mail portal test dev old shop new cms erp crm hr srm wms ebidding e bidding zhaobiao openapi open api2 v1 v2 mobile applet mp pay sms jk jiankang yuyue guahao register login sso iam id oss bucket storage cdn img static assets file download dcdn gw gateway svc web page site news bbs forum forum1 blog wiki help support faq contact about hr2 it info data bigdata ai iot edge cloud vc vc2 vpn ssl cert log syslog monitor zabbix grafana kibana jenkins gitlab git svn gitea harbor registry nexus maven pypi npm docker k8s kubernetes etcd redis mysql oracle db sql mssql postgres pg mssql2 ldap ad dc nfs ftp sftp s3 minio cos tos oss2 obs aso eip slb alb nlb clb waf ddos antiddos antiwebapp botshield botshield2 edgeone esa waf2 aegis lychee yun jhelper jkyy yym ydy pacs his emr lis rpms 120 114 95598 95518 400 800 100 200 300 4008008009 4001000 8009 5598 zgyy zyy tjyy tj 12345 12346 12347 11112 22223 33334 44445 55556 66667 77778 88889 99990; do
-  echo "$p.$DOM"
-done | xargs -P 20 -I{} sh -c 'ip=$(curl -sk4 -m 8 "https://dns.alidns.com/resolve?name={}&type=A" | grep -oE "\"type\":1,\"data\":\"[0-9.]+\"" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | sort -u | tr "\n" " "); [ -n "$ip" ] && echo "{} => $ip"')
+# ⑧ 共享子域词表（~400 前缀，覆盖 大厂/legacy/dev/营销/支付/AI）+ 官网自动抽品牌主体词
+# 与 hunter-cli subs 走同一份 tools/wordlists/subs.txt，两处不漂移
+_WL="$HERE/tools/wordlists/subs.txt"; [ -f "$_WL" ] || _WL=""
+_PFX=""; [ -n "$_WL" ] && _PFX=$(tr '\n' ' ' < "$_WL" | sed 's/ #.*//')
+[ -z "$_PFX" ] && _PFX="www app api wap m h5 admin oa mail portal test dev old shop new cms erp crm hr srm"
+# ⑧ 官网抽品牌/主体词（<title>/meta keywords 里 2~14 字母词，滤通用词）当专属前缀
+_BALL=""
+curl -sk4 -m 15 -A "$UA" "https://www.$DOM/" 2>/dev/null > "$OUT/_brand.html"
+_BALL=$( { grep -oiE '<title>[^<]*' "$OUT/_brand.html" 2>/dev/null | sed 's/<title>//i'
+           grep -oiE '<meta[^>]*(name|property)="(keywords|og:site_name)"[^>]*content="[^"]*"' "$OUT/_brand.html" 2>/dev/null | sed 's/.*content="//;s/"//' ; } \
+  | tr '[:upper:]' '[:lower:]' | grep -oiE '[a-z][a-z0-9_-]{1,13}' \
+  | grep -vixE '^(www|com|cn|org|net|co|shop|home|index|about|login|app|api|news|blog|m|h5|portal|service|center|store|market|platform|科技|有限|公司|集团)$' \
+  | grep -vixE '^(a|an|the|of|in|for|and|to|is|on|com|cn)$' | sort -u | head -8 | tr '\n' ' ' )
+[ -n "$_BALL" ] && echo "⑧ 官网自动抽品牌/主体词追加前缀: $_BALL"
+_PFX="$_PFX $_BALL"
+echo "==> [$DOM] 阶段1: 子域枚举 (DoH批量 $(echo $_PFX | wc -w) 前缀[共享词表+品牌词]; crt.sh 走 hunter-cli subs 自研补长尾)"
+# 并行 20 路（合规:DoH 查询不碰目标）。前缀列表经文件传入，xargs -P20
+# 前缀列表并行探活：管道喂 xargs（域可见保留在源码里），MSYS_NO_PATHCONV=1 保证 /c/... 路径不被 Git-bash 转换成 Windows 路径
+CT=$(MSYS_NO_PATHCONV=1 printf '%s\n' $_PFX | grep -v '^$' | xargs -P 20 -I{} sh -c 's="${1}.$2"; ip=$(curl -sk4 -m 8 "https://dns.alidns.com/resolve?name=${s}&type=A" | grep -oE "\"type\":1,\"data\":\"[0-9.]+\"" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | sort -u | tr "\n" " "); [ -n "$ip" ] && echo "${s} => ${ip}"' _ "$DOM" 2>/dev/null)
 CT=$(echo "$CT" | grep '=>' | cut -d' ' -f1 | sort -u)
 echo "$CT" > "$OUT/_subs_raw.txt"
 echo "$CT" | grep -v '^$' | head -40

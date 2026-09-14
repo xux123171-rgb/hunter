@@ -62,9 +62,27 @@ cmd_subs() { # 阶段1 自研子域枚举：DoH批量200前缀 + crt.sh CT（被
   local DOM="${1:?domain}"; local SLUG="${2:-${DOM//./_}}"
   local out; out=$(scratchdir "$SLUG"); mkdir -p "$out"
   echo "== hunter subs $DOM =="
-  local PFX="www app api wap m h5 admin oa mail portal test dev old shop new cms erp crm hr srm wms ebidding e bidding zhaobiao openapi open api2 v1 v2 mobile applet mp pay sms jk jiankang yuyue guahao register login sso iam id oss bucket storage cdn img static assets file download gw gateway svc web page site news bbs blog wiki help support faq contact it info data bigdata ai iot edge cloud vpn ssl cert log monitor zabbix grafana jenkins gitlab git svn harbor registry nexus docker k8s etcd redis mysql oracle db sql mssql postgres ldap ad dc nfs ftp sftp s3 minio cos eip slb alb clb waf ddos antiddos botshield esa 120 114 400 800 95598 95518"
+  # 子域前缀：共享词表 tools/wordlists/subs.txt（~400 前缀，覆盖 大厂/legacy/dev/营销/支付/AI）
+  # ⑧ 品牌扩面：追加从官网抓的品牌主体词（备案主体名/官网标题里的品牌词）当专属前缀
+  local WLF="$HERE/tools/wordlists/subs.txt"
+  [ -f "$WLF" ] || { echo "⚠ 缺 $WLF，退回内置 200 前缀"; WLF=""; }
+  local PFX
+  if [ -n "$WLF" ]; then PFX=$(tr '\n' ' ' < "$WLF" | sed 's/ #.*//')
+  else PFX="www app api wap m h5 admin oa mail portal test dev old shop new cms erp crm hr srm"; fi
+  # ⑧ 品牌扩面：从官网首页抽拉丁品牌/主体词（<title>/meta 里的 2~14 字母词，滤掉通用词）当专属子域前缀。
+  # 例 konka.com 标题含 "KONKA/康佳" → 抽 konka 追加；某站标题 "XYZ 商城" → 抽 xyz。
+  local BRAND=""
+  curl -sk4 -m 15 -A "$UA" "https://www.$DOM/" 2>/dev/null > "$out/_brand.html"
+  BRAND=$( { grep -oiE '<title>[^<]*' "$out/_brand.html" 2>/dev/null | sed 's/<title>//i'
+             grep -oiE '<meta[^>]*(name|property)="(keywords|og:site_name)"[^>]*content="[^"]*"' "$out/_brand.html" 2>/dev/null | sed 's/.*content="//;s/"//' ; } \
+    | tr '[:upper:]' '[:lower:]' | grep -oiE '[a-z][a-z0-9_-]{1,13}' \
+    | grep -vixE '^(www|com|cn|org|net|co|shop|home|index|about|login|app|api|news|blog|m|h5|portal|service|center|store|market|platform|科技|有限|公司|集团)$' \
+    | grep -vixE '^(a|an|the|of|in|for|and|to|is|on|com|cn)$' | sort -u | head -8 | tr '\n' ' ' )
+  [ -n "$BRAND" ] && echo "⑧ 官网自动抽品牌/主体词追加前缀: $BRAND"
+  PFX="$PFX $BRAND"
   : > "$out/_subs.txt"
   for p in $PFX; do
+    case "$p" in www|app|*|?) : ;; *) continue;; esac
     local s="$p.$DOM"; local ip; ip=$(doh "$s")
     [ -n "$ip" ] && echo "$s  =>  $ip" >> "$out/_subs.txt"
   done
